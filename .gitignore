@@ -1,0 +1,26 @@
+# Build artifacts
+installer/ZombieBuddyInstaller.exe
+installer/ZombieBuddyInstaller-linux-*
+installer/ZombieBuddyInstaller-macos-*
+installer/*.test
+installer/coverage.out
+installer/coverage.html
+
+# Go tooling
+installer/vendor/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local environment files
+.env
+.env.*
+!.env.example
