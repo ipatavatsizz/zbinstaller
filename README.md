@@ -99,6 +99,14 @@ rake test           Run go test ./...
 
 The output binaries are written to the `installer` directory.
 
+## Automated releases
+
+Pushing a version tag such as `v4.5` starts the GitHub Actions release workflow. It builds native Windows, Linux, and macOS artifacts on their respective GitHub-hosted runners and publishes them to one GitHub Release.
+
+Linux and macOS builds are experimental and may not work on every distribution or system. A local Linux or macOS machine is not required for the release build.
+
+The workflow can also be started manually for an existing tag from the **Actions** tab. This is useful for tags created before the workflow was added.
+
 ## Project layout
 
 ```text
