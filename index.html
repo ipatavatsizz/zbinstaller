@@ -4,26 +4,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZombieBuddy Installer — Automated Configuration Utility</title>
+    <meta name="description"
+        content="ZombieBuddy Installer automatically installs and configures ZombieBuddy for Project Zomboid on Windows, Linux and macOS.">
+    <title>ZombieBuddy Installer</title>
     <style>
         :root {
-            --bg: #e5ece8;
-            /* Soft pastel sage background */
-            --card-bg: #f6f9f7;
-            /* Clean pastel card fill */
-            --text-main: #27362f;
-            /* Deep muted green-gray */
-            --text-sub: #546a5f;
-            /* Secondary descriptive text */
-            --accent: #6f9280;
-            /* Main pastel green button */
-            --accent-hover: #5d7c6d;
-            /* Button hover color */
-            --border: #d0ded6;
-            /* Subtle divider border */
-            --badge-bg: #d7e4dd;
-            /* Pill badge background */
-            --card-inner: rgba(255, 255, 255, 0.65);
+            --bg: #101713;
+            --surface: #17231c;
+            --surface-raised: #1d2c23;
+            --border: #2b4033;
+            --text: #edf5ef;
+            --muted: #a7b9ac;
+            --accent: #9ee493;
+            --accent-strong: #75d66d;
+            --accent-ink: #122016;
+            --warning: #f2c879;
         }
 
         * {
@@ -33,160 +28,350 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: var(--bg);
-            color: var(--text-main);
             min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 2rem 1rem;
+            padding: 32px 16px;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 50% -10%, #294b34 0, transparent 42%),
+                var(--bg);
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
         }
 
         .container {
-            width: 100%;
-            max-width: 680px;
+            width: min(100%, 960px);
+            margin: 0 auto;
         }
 
-        .card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 3rem 2.5rem;
-            box-shadow: 0 10px 35px rgba(39, 54, 47, 0.05);
+        .hero {
+            padding: 44px 24px 36px;
             text-align: center;
         }
 
-        .badge-row {
-            display: flex;
-            justify-content: center;
-            gap: 0.5rem;
-            margin-bottom: 1.25rem;
+        .eyebrow {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 20px;
+            color: var(--accent);
+            font-size: .75rem;
+            font-weight: 700;
+            letter-spacing: .14em;
+            text-transform: uppercase;
         }
 
-        .badge {
-            background-color: var(--badge-bg);
-            color: var(--text-sub);
-            font-size: 0.725rem;
-            font-weight: 600;
-            padding: 0.35rem 0.85rem;
-            border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+        .eyebrow::before {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-strong);
+            box-shadow: 0 0 16px var(--accent-strong);
+            content: "";
         }
 
         h1 {
-            font-size: 2.1rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 1rem;
-            color: var(--text-main);
+            margin-bottom: 16px;
+            font-size: clamp(2.2rem, 6vw, 4.5rem);
+            line-height: 1.05;
+            letter-spacing: -.055em;
         }
 
-        .intro {
-            color: var(--text-sub);
-            font-size: 1rem;
-            line-height: 1.6;
-            margin-bottom: 2rem;
-            text-align: left;
+        .hero p {
+            max-width: 650px;
+            margin: 0 auto;
+            color: var(--muted);
+            font-size: clamp(1rem, 2vw, 1.15rem);
         }
 
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 2rem;
-            text-align: left;
-        }
-
-        .feature-box {
-            background: var(--card-inner);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.1rem;
-        }
-
-        .feature-box h3 {
-            font-size: 0.9rem;
-            font-weight: 600;
-            margin-bottom: 0.4rem;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .feature-box p {
-            font-size: 0.8rem;
-            color: var(--text-sub);
-            line-height: 1.45;
+        .hero strong {
+            color: var(--text);
         }
 
         .actions {
             display: flex;
-            flex-direction: column;
-            gap: 0.8rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 28px;
         }
 
-        .btn {
-            display: flex;
+        .button {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
-            width: 100%;
-            background-color: var(--accent);
-            color: #ffffff;
-            padding: 1rem;
-            border-radius: 12px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: background-color 0.2s ease, transform 0.1s ease;
-        }
-
-        .btn:hover {
-            background-color: var(--accent-hover);
-        }
-
-        .btn:active {
-            transform: scale(0.99);
-        }
-
-        .links-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.8rem;
-        }
-
-        .btn-secondary {
-            background-color: transparent;
+            min-height: 48px;
+            padding: 0 20px;
             border: 1px solid var(--border);
-            color: var(--text-main);
-            font-size: 0.9rem;
-            padding: 0.85rem;
+            border-radius: 10px;
+            color: var(--text);
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform .15s ease, border-color .15s ease, background .15s ease;
         }
 
-        .btn-secondary:hover {
-            background-color: rgba(255, 255, 255, 0.7);
+        .button:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
         }
 
-        svg {
+        .button-primary {
+            border-color: var(--accent);
+            color: var(--accent-ink);
+            background: var(--accent);
+        }
+
+        .button-primary:hover {
+            background: var(--accent-strong);
+        }
+
+        .button svg {
             width: 18px;
             height: 18px;
+            margin-right: 9px;
             fill: currentColor;
-            flex-shrink: 0;
         }
 
-        @media (max-width: 580px) {
-            .card {
-                padding: 2rem 1.5rem;
+        .section {
+            margin-top: 24px;
+            padding: 28px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: rgba(23, 35, 28, .82);
+        }
+
+        .section-heading {
+            margin-bottom: 20px;
+        }
+
+        .section-heading h2 {
+            margin-bottom: 5px;
+            font-size: 1.45rem;
+        }
+
+        .section-heading p {
+            color: var(--muted);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .feature {
+            min-height: 160px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-raised);
+        }
+
+        .feature-icon {
+            display: grid;
+            width: 34px;
+            height: 34px;
+            margin-bottom: 14px;
+            place-items: center;
+            border-radius: 9px;
+            color: var(--accent);
+            background: rgba(158, 228, 147, .12);
+            font-size: 1.1rem;
+        }
+
+        .feature h3 {
+            margin-bottom: 6px;
+            font-size: 1rem;
+        }
+
+        .feature p,
+        .step p {
+            color: var(--muted);
+            font-size: .9rem;
+        }
+
+        .branch-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .branch {
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface-raised);
+        }
+
+        .branch h3 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 7px;
+        }
+
+        .branch p {
+            min-height: 44px;
+            color: var(--muted);
+            font-size: .9rem;
+        }
+
+        .branch a {
+            display: inline-block;
+            margin-top: 14px;
+            color: var(--accent);
+            font-size: .85rem;
+            font-weight: 700;
+        }
+
+        .tag {
+            padding: 3px 8px;
+            border-radius: 20px;
+            color: var(--accent-ink);
+            background: var(--accent);
+            font-size: .7rem;
+            font-weight: 800;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            counter-reset: step;
+        }
+
+        .step {
+            position: relative;
+            padding: 18px 14px 14px 44px;
+            border-left: 1px solid var(--border);
+        }
+
+        .step::before {
+            position: absolute;
+            top: 16px;
+            left: -14px;
+            display: grid;
+            width: 27px;
+            height: 27px;
+            border: 1px solid var(--accent);
+            border-radius: 50%;
+            place-items: center;
+            color: var(--accent-ink);
+            background: var(--accent);
+            content: counter(step);
+            counter-increment: step;
+            font-size: .8rem;
+            font-weight: 800;
+        }
+
+        .step h3 {
+            margin-bottom: 5px;
+            font-size: .95rem;
+        }
+
+        .note {
+            margin-top: 24px;
+            padding: 16px 18px;
+            border: 1px solid rgba(242, 200, 121, .35);
+            border-radius: 10px;
+            color: #ead9b5;
+            background: rgba(242, 200, 121, .08);
+            font-size: .9rem;
+        }
+
+        .note strong {
+            color: var(--warning);
+        }
+
+        footer {
+            padding: 28px 16px 8px;
+            color: var(--muted);
+            text-align: center;
+            font-size: .85rem;
+        }
+
+        .github-links {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
+        .github-link {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            background: var(--surface-raised);
+            text-decoration: none;
+            transition: border-color .15s ease, transform .15s ease, background .15s ease;
+        }
+
+        .github-link:hover {
+            border-color: var(--accent);
+            background: #24372b;
+            transform: translateY(-2px);
+        }
+
+        .github-link svg {
+            width: 28px;
+            height: 28px;
+            flex: 0 0 auto;
+            fill: var(--accent);
+        }
+
+        .github-link strong {
+            display: block;
+            margin-bottom: 2px;
+            color: var(--text);
+            font-size: .95rem;
+        }
+
+        .github-link span {
+            color: var(--muted);
+            font-size: .78rem;
+        }
+
+        .footer-note {
+            color: var(--muted);
+        }
+
+        .footer-note a {
+            color: var(--accent);
+        }
+
+        @media (max-width: 700px) {
+            .feature-grid,
+            .steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px 10px;
             }
 
-            .features-grid {
+            .hero {
+                padding: 34px 12px 28px;
+            }
+
+            .section {
+                padding: 20px 16px;
+            }
+
+            .feature-grid,
+            .branch-grid,
+            .steps {
                 grid-template-columns: 1fr;
             }
 
-            .links-row {
+            .github-links {
                 grid-template-columns: 1fr;
             }
         }
@@ -194,90 +379,133 @@
 </head>
 
 <body>
-
-    <div class="container">
-        <div class="card">
-
-            <div class="badge-row">
-                <span class="badge">Windows Only</span>
-                <span class="badge">Project Zomboid</span>
-            </div>
-
-            <h1>ZombieBuddy Installer</h1>
-
-            <div class="intro">
-                <p>
-                    <strong>ZombieBuddy Installer</strong> is a lightweight background utility built to automate the
-                    installation and JVM configuration required for ZombieBuddy. It safely patches your Steam Launch
-                    Options and Project Zomboid launch scripts without requiring manual environment setup.
-                </p>
-            </div>
-
-            <div class="features-grid">
-                <div class="feature-box">
-                    <h3>
-                        <svg viewBox="0 0 24 24">
-                            <path
-                                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-                        </svg>
-                        Automated Patching
-                    </h3>
-                    <p>Applies required <code>-agentlib:zbNative</code> flags to Steam VDF,
-                        <code>ProjectZomboid64.json</code>, and batch scripts automatically.
-                    </p>
-                </div>
-
-                <div class="feature-box">
-                    <h3>
-                        <svg viewBox="0 0 24 24">
-                            <path
-                                d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
-                        </svg>
-                        Safe Backups
-                    </h3>
-                    <p>Creates a <code>.backup</code> of your original configuration files prior to any modifications
-                        and never overwrites existing backups.</p>
-                </div>
-
-                <div class="feature-box">
-                    <h3>
-                        <svg viewBox="0 0 24 24">
-                            <path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                        </svg>
-                        Zero Setup
-                    </h3>
-                    <p>Detects Steam paths and active installations seamlessly without requiring manual file placement
-                        or environment variables.</p>
-                </div>
-            </div>
-
+    <main class="container">
+        <header class="hero">
+            <div class="eyebrow">Cross-platform utility · Project Zomboid</div>
+            <h1>ZombieBuddy,<br>without the manual setup.</h1>
+            <p><strong>ZombieBuddy Installer</strong> finds your Steam installation, installs the selected Workshop
+                branch and configures every launcher entry required by ZombieBuddy.</p>
             <div class="actions">
-                <a href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest/download/ZombieBuddyInstaller.exe"
-                    class="btn">
-                    <svg viewBox="0 0 24 24">
+                <a class="button button-primary"
+                    href="https://github.com/ipatavatsizz/zbinstaller/releases/latest">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                     </svg>
-                    Download Installer (.exe)
+                    Download installer
                 </a>
+                <a class="button" href="https://github.com/ipatavatsizz/zbinstaller" target="_blank"
+                    rel="noreferrer">View source</a>
+            </div>
+        </header>
 
-                <div class="links-row">
-                    <a href="YOUR_ZB_WORKSHOP_LINK" target="_blank" class="btn btn-secondary">ZombieBuddy Mod</a>
-                    <a href="YOUR_VIEWPOINT_WORKSHOP_LINK" target="_blank" class="btn btn-secondary">Viewpoint Mod</a>
-                </div>
+        <section class="section" aria-labelledby="features-title">
+            <div class="section-heading">
+                <h2 id="features-title">What it handles</h2>
+                <p>One click for the setup steps that are easy to miss.</p>
+            </div>
+            <div class="feature-grid">
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">⌕</div>
+                    <h3>Automatic discovery</h3>
+                    <p>Detects Steam and Project Zomboid across all configured Steam libraries, including secondary
+                        drives.</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">↯</div>
+                    <h3>Complete patching</h3>
+                    <p>Updates Steam Launch Options, the normal JSON launcher and the alternate batch launcher with
+                        <code>-agentlib:zbNative</code>.</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">✓</div>
+                    <h3>Safe and repeatable</h3>
+                    <p>Creates non-destructive <code>.backup</code> files, keeps existing options and rolls back a
+                        failed installation automatically.</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">↓</div>
+                    <h3>Native files included</h3>
+                    <p>Copies the platform-native library and <code>ZombieBuddy.jar</code> from the selected Workshop
+                        branch.</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">◈</div>
+                    <h3>LTS and Beta</h3>
+                    <p>Detects subscribed versions and lets you choose the stable LTS or the latest Beta branch from
+                        the installer.</p>
+                </article>
+                <article class="feature">
+                    <div class="feature-icon" aria-hidden="true">i</div>
+                    <h3>Diagnostics built in</h3>
+                    <p>Press <code>F5</code> in the app to inspect paths, Workshop versions, launcher files and a
+                        timestamped installation log.</p>
+                </article>
+            </div>
+        </section>
 
-                <a href="YOUR_DISCORD_INVITE_LINK" target="_blank" class="btn btn-secondary">
-                    <svg viewBox="0 0 24 24">
+        <section class="section" aria-labelledby="branches-title">
+            <div class="section-heading">
+                <h2 id="branches-title">Choose your branch</h2>
+                <p>Subscribe to a branch in Steam Workshop before running the installer.</p>
+            </div>
+            <div class="branch-grid">
+                <article class="branch">
+                    <h3>Long-term support <span class="tag">Recommended</span></h3>
+                    <p>The stable branch for a reliable day-to-day ZombieBuddy setup.</p>
+                    <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=3619862853" target="_blank"
+                        rel="noreferrer">Open LTS Workshop page →</a>
+                </article>
+                <article class="branch">
+                    <h3>Beta</h3>
+                    <p>Try the latest changes when you want early access to new features.</p>
+                    <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=3812624292" target="_blank"
+                        rel="noreferrer">Open Beta Workshop page →</a>
+                </article>
+            </div>
+        </section>
+
+        <section class="section" aria-labelledby="process-title">
+            <div class="section-heading">
+                <h2 id="process-title">How installation works</h2>
+                <p>The installer keeps the process visible and reports errors instead of hiding them.</p>
+            </div>
+            <div class="steps">
+                <article class="step">
+                    <h3>Finds your files</h3>
+                    <p>Reads Steam’s library configuration and locates Project Zomboid.</p>
+                </article>
+                <article class="step">
+                    <h3>Prepares a snapshot</h3>
+                    <p>Records every file it may change so a failed run can be restored.</p>
+                </article>
+                <article class="step">
+                    <h3>Installs and patches</h3>
+                    <p>Closes Steam, copies the native files and updates all three launch paths.</p>
+                </article>
+                <article class="step">
+                    <h3>Confirms completion</h3>
+                    <p>Shows each step’s status and confirms when ZombieBuddy is ready.</p>
+                </article>
+            </div>
+            <div class="note"><strong>Before you start:</strong> close Project Zomboid and subscribe to the desired
+                ZombieBuddy Workshop branch. The installer will close Steam temporarily while updating its launch
+                configuration.</div>
+        </section>
+
+        <footer>
+            <div class="github-links">
+                <a class="github-link" href="https://github.com/ipatavatsizz/zbinstaller" target="_blank"
+                    rel="noreferrer">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path
-                            d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-6.176-1.286.077.077 0 0 0-.079.037A19.736 19.736 0 0 0 3.655 16.29a.077.077 0 0 0 .041.053c2.022 1.492 3.978 2.39 5.922 2.982.035.011.07-.006.086-.036.45-.615.855-1.265 1.21-1.944a.077.077 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.927 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.679.765 1.329 1.213 1.943a.077.077 0 0 0 .085.037 19.843 19.843 0 0 0 5.925-2.982.077.077 0 0 0 .041-.054 19.742 19.742 0 0 0-3.328-11.92z" />
+                            d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.1c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.25 3.32.96.1-.74.4-1.25.73-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.77.11 3.06.73.81 1.18 1.84 1.18 3.1 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.08.78 2.18v3.23c0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
                     </svg>
-                    Discord Community
+                    <span><strong>Installer source</strong>github.com/ipatavatsizz/zbinstaller</span>
                 </a>
             </div>
-
-        </div>
-    </div>
-
+            <div class="footer-note">Made by ipatavatsizz</div>
+        </footer>
+    </main>
 </body>
 
 </html>
