@@ -8,78 +8,7 @@ import (
 	"strings"
 
 	"github.com/andygrunwald/vdf"
-	"golang.org/x/sys/windows"
 )
-
-func PatchProjectZomboidBat() error {
-	if PZ_PATH == "" {
-		return fmt.Errorf("Project Zomboid installation path could not be found")
-	}
-
-	batPath := filepath.Join(PZ_PATH, "ProjectZomboid64.bat")
-
-	data, err := os.ReadFile(batPath)
-	if err != nil {
-		return fmt.Errorf("could not read %s: %w", batPath, err)
-	}
-
-	content := string(data)
-
-	backupPath := batPath + ".backup"
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-		if err := os.WriteFile(backupPath, data, 0644); err != nil {
-			return fmt.Errorf("could not create backup %s: %w", backupPath, err)
-		}
-	}
-
-	newline := "\n"
-	if strings.Contains(content, "\r\n") {
-		newline = "\r\n"
-	}
-	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
-	modified := false
-	foundJavaOptions := false
-
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		if strings.HasPrefix(strings.ToUpper(trimmed), "SET _JAVA_OPTIONS=") {
-			foundJavaOptions = true
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) != 2 {
-				return fmt.Errorf("invalid _JAVA_OPTIONS assignment in %s at line %d", batPath, i+1)
-			}
-			if !strings.Contains(parts[1], ZB_FLAGS) {
-				val := strings.TrimSpace(parts[1])
-				if val == "" {
-					line = parts[0] + "=" + ZB_FLAGS
-				} else {
-					line = parts[0] + "=" + ZB_FLAGS + " " + val
-				}
-				modified = true
-			}
-		}
-		lines[i] = line
-	}
-
-	if !foundJavaOptions {
-		insertAt := 0
-		for insertAt < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[insertAt]), "@") {
-			insertAt++
-		}
-		lines = append(lines, "")
-		copy(lines[insertAt+1:], lines[insertAt:])
-		lines[insertAt] = "SET _JAVA_OPTIONS=" + ZB_FLAGS
-		modified = true
-	}
-
-	if modified {
-		if err := atomicWriteFile(batPath, []byte(strings.Join(lines, newline)), 0644); err != nil {
-			return fmt.Errorf("could not update %s: %w", batPath, err)
-		}
-	}
-	return nil
-}
 
 func PatchProjectZomboidJson() error {
 	if PZ_PATH == "" {
@@ -326,39 +255,6 @@ func vdfValue(line string) string {
 		return ""
 	}
 	return parts[3]
-}
-
-func atomicWriteFile(path string, data []byte, mode os.FileMode) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
-	if err := temp.Chmod(mode); err != nil {
-		temp.Close()
-		return err
-	}
-	if _, err := temp.Write(data); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Sync(); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	oldName, err := windows.UTF16PtrFromString(tempPath)
-	if err != nil {
-		return err
-	}
-	newName, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return err
-	}
-	return windows.MoveFileEx(oldName, newName, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
 }
 
 func GetConfigPaths() []string {

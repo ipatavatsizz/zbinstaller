@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -56,7 +57,12 @@ func TestPatchSteamConfigsPatchesExistingAppsEntry(t *testing.T) {
 func TestPatchProjectZomboidBatAddsAndPreservesOptions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ProjectZomboid64.bat")
-	if err := os.WriteFile(path, []byte("@echo off\r\nset PATH=%PATH%\r\n"), 0644); err != nil {
+	content := []byte("@echo off\r\nset PATH=%PATH%\r\n")
+	if runtime.GOOS != "windows" {
+		path = filepath.Join(dir, "ProjectZomboid64.sh")
+		content = []byte("#!/bin/sh\necho start\n")
+	}
+	if err := os.WriteFile(path, content, 0644); err != nil {
 		t.Fatal(err)
 	}
 	oldPath := PZ_PATH
@@ -71,7 +77,10 @@ func TestPatchProjectZomboidBatAddsAndPreservesOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(output)
-	if !strings.Contains(text, "SET _JAVA_OPTIONS="+ZB_FLAGS) || !strings.Contains(text, "set PATH=%PATH%") {
+	if runtime.GOOS == "windows" && (!strings.Contains(text, "SET _JAVA_OPTIONS="+ZB_FLAGS) || !strings.Contains(text, "set PATH=%PATH%")) {
+		t.Fatalf("unexpected batch output: %q", text)
+	}
+	if runtime.GOOS != "windows" && !strings.Contains(text, "export _JAVA_OPTIONS=\""+ZB_FLAGS) {
 		t.Fatalf("unexpected batch output: %q", text)
 	}
 	if _, err := os.Stat(path + ".backup"); err != nil {
@@ -83,6 +92,10 @@ func TestPatchProjectZomboidBatIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ProjectZomboid64.bat")
 	input := "SET _JAVA_OPTIONS=" + ZB_FLAGS + " -Xmx4G\r\n"
+	if runtime.GOOS != "windows" {
+		path = filepath.Join(dir, "ProjectZomboid64.sh")
+		input = "#!/bin/sh\nexport _JAVA_OPTIONS=\"" + ZB_FLAGS + " -Xmx4G\"\n"
+	}
 	if err := os.WriteFile(path, []byte(input), 0644); err != nil {
 		t.Fatal(err)
 	}
