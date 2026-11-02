@@ -100,13 +100,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release-tag.outputs.value }}
+          RELEASE_NOTES: |
+            ## Experimental release
+
+            This release includes cross-platform installer support. Linux and macOS support is experimental and may not work on every distribution or system.
+
+            Please report platform-specific issues with your operating system and distribution details.
         run: |
           gh release create "$RELEASE_TAG" release-assets/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "ZombieBuddy Installer ${RELEASE_TAG#v}" \
             --latest \
-            --notes "## Experimental release
-
-This release includes cross-platform installer support. Linux and macOS support is experimental and may not work on every distribution or system.
-
-Please report platform-specific issues with your operating system and distribution details."
+            --notes "$RELEASE_NOTES"
