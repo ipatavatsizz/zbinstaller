@@ -48,6 +48,17 @@
             text-align: center;
         }
 
+        .hero-logo {
+            display: block;
+            width: 104px;
+            height: 104px;
+            margin: 0 auto 24px;
+            border: 1px solid rgba(158, 228, 147, .42);
+            border-radius: 28px;
+            box-shadow: 0 16px 42px rgba(0, 0, 0, .28), 0 0 32px rgba(117, 214, 109, .12);
+            object-fit: cover;
+        }
+
         .eyebrow {
             display: inline-flex;
             gap: 8px;
@@ -381,6 +392,7 @@
 <body>
     <main class="container">
         <header class="hero">
+            <img class="hero-logo" src="installer/icon.png" alt="ZombieBuddy Installer logo">
             <div class="eyebrow">Cross-platform utility · Project Zomboid</div>
             <h1>ZombieBuddy,<br>without the manual setup.</h1>
             <p><strong>ZombieBuddy Installer</strong> finds your Steam installation, installs the selected Workshop
