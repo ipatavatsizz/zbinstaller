@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestInstallStateRoundTrip(t *testing.T) {
@@ -109,6 +110,19 @@ func TestSteamLibraryPathsMissingIndex(t *testing.T) {
 	}
 }
 
+func TestSteamRootHasMetadata(t *testing.T) {
+	root := t.TempDir()
+	if steamRootHasMetadata(root) {
+		t.Fatal("empty directory was accepted as a Steam root")
+	}
+	if err := os.Mkdir(filepath.Join(root, "steamapps"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if !steamRootHasMetadata(root) {
+		t.Fatal("Steam root with steamapps was rejected")
+	}
+}
+
 func TestSteamLibraryPathsAndManifest(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "steamapps"), 0755); err != nil {
@@ -158,6 +172,55 @@ func TestFindWorkshopPathAndBranchVersion(t *testing.T) {
 	}
 }
 
+func TestWaitForZBBranchRequiresDownloadedFiles(t *testing.T) {
+	root := t.TempDir()
+	branchPath := filepath.Join(root, "steamapps", "workshop", "content", PZ_APP, string(BranchLTS))
+	libraryPath := filepath.Join(branchPath, "mods", "ZombieBuddy", "libs")
+	if err := os.MkdirAll(libraryPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range ZB_FILES {
+		if err := os.WriteFile(filepath.Join(libraryPath, file), []byte("downloaded"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	oldPath := STEAM_PATH
+	STEAM_PATH = root
+	t.Cleanup(func() { STEAM_PATH = oldPath })
+
+	var progressCalls int
+	got, err := waitForZBBranch(BranchLTS, time.Second, func(time.Duration) {
+		progressCalls++
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != branchPath {
+		t.Fatalf("branch path = %q, want %q", got, branchPath)
+	}
+	if progressCalls != 0 {
+		t.Fatalf("progress calls = %d, want 0 for an already downloaded branch", progressCalls)
+	}
+}
+
+func TestWaitForZBBranchTimesOutWhenFilesAreIncomplete(t *testing.T) {
+	root := t.TempDir()
+	branchPath := filepath.Join(root, "steamapps", "workshop", "content", PZ_APP, string(BranchLTS))
+	if err := os.MkdirAll(branchPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldPath := STEAM_PATH
+	STEAM_PATH = root
+	t.Cleanup(func() { STEAM_PATH = oldPath })
+
+	_, err := waitForZBBranch(BranchLTS, 10*time.Millisecond, nil)
+	if err == nil || !strings.Contains(err.Error(), "did not finish downloading") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestReadManifestInstallDir(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "manifest.acf")
 	if err := os.WriteFile(path, []byte(`"AppState" { "installdir" "ProjectZomboid" }`), 0644); err != nil {
@@ -178,6 +241,9 @@ func TestSteamProcessRunning(t *testing.T) {
 func TestSteamRegistryAndProcessFunctions(t *testing.T) {
 	if path := GetSteamPath(); path != "" && !filepath.IsAbs(path) {
 		t.Fatalf("Steam path is not absolute: %q", path)
+	}
+	if path := GetSteamPath(); path != "" && !existingDirectory(path) {
+		t.Fatalf("Steam path is not an existing directory: %q", path)
 	}
 	if pid, err := FindSteam(); err == nil && pid == 0 {
 		t.Fatal("Steam registry returned an invalid zero PID")
@@ -204,6 +270,26 @@ func TestKillSteamWhenAlreadyClosed(t *testing.T) {
 	}
 	if err := KillSteam(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestStartSteamReportsMissingExecutable(t *testing.T) {
+	oldPath := STEAM_PATH
+	STEAM_PATH = t.TempDir()
+	t.Cleanup(func() { STEAM_PATH = oldPath })
+
+	if err := StartSteam(); err == nil || !strings.Contains(err.Error(), "Steam executable") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestOpenSteamWorkshopPageReportsMissingExecutable(t *testing.T) {
+	oldPath := STEAM_PATH
+	STEAM_PATH = t.TempDir()
+	t.Cleanup(func() { STEAM_PATH = oldPath })
+
+	if err := OpenSteamWorkshopPage(BranchLTS); err == nil || !strings.Contains(err.Error(), "Steam executable") {
+		t.Fatalf("error = %v", err)
 	}
 }
 

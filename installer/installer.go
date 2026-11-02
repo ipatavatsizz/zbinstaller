@@ -41,6 +41,26 @@ type installState struct {
 	message string
 }
 
+type branchActionButton struct {
+	widget.Button
+	menu *fyne.Menu
+}
+
+type authorLink struct {
+	widget.Label
+	url *url.URL
+}
+
+func (l *authorLink) Tapped(*fyne.PointEvent) {
+	if err := fyne.CurrentApp().OpenURL(l.url); err != nil {
+		fyne.LogError("Could not open author link", err)
+	}
+}
+
+func (b *branchActionButton) TappedSecondary(event *fyne.PointEvent) {
+	widget.ShowPopUpMenuAtPosition(b.menu, fyne.CurrentApp().Driver().CanvasForObject(b), event.AbsolutePosition)
+}
+
 var (
 	currentInstallState = installState{status: StatusIdle, message: "Ready. Select an installation option."}
 	installStateMu      sync.RWMutex
@@ -89,7 +109,7 @@ const (
 var (
 	STEAM_PATH = GetSteamPath()
 	PZ_PATH    = findProjectZomboidPath(STEAM_PATH)
-	ZB_FILES   = []string{"zbNative.dll", "ZombieBuddy.jar"}
+	ZB_FILES   = platformZBFiles()
 )
 
 func existingDirectory(path string) bool {
@@ -168,13 +188,13 @@ func openDebugWindow(a fyne.App, onClosed func()) fyne.Window {
 			steamState = "running"
 		}
 		jsonPath := filepath.Join(PZ_PATH, "ProjectZomboid64.json")
-		batPath := filepath.Join(PZ_PATH, "ProjectZomboid64.bat")
+		launcherPath := projectZomboidLauncherPath(PZ_PATH)
 		files.SetText(fmt.Sprintf(
-			"Launcher files:\nProjectZomboid64.json: %s\nProjectZomboid64.bat: %s\nzbNative.dll: %s\nZombieBuddy.jar: %s",
+			"Launcher files:\nProjectZomboid64.json: %s\n%s: %s\n%s: %s\n%s: %s",
 			debugFileState(jsonPath),
-			debugFileState(batPath),
-			debugFileState(filepath.Join(PZ_PATH, "zbNative.dll")),
-			debugFileState(filepath.Join(PZ_PATH, "ZombieBuddy.jar")),
+			filepath.Base(launcherPath), debugFileState(launcherPath),
+			ZB_FILES[0], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[0])),
+			ZB_FILES[1], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[1])),
 		))
 		appendLog("Diagnostics refreshed", fmt.Sprintf(
 			"Steam process=%s; localconfig files=%d; libraries=%d; LTS=%s; Beta=%s",
@@ -203,8 +223,8 @@ func openDebugWindow(a fyne.App, onClosed func()) fyne.Window {
 			return "Completed successfully."
 		})
 	})
-	batButton := widget.NewButton("Patch PZ Batch", func() {
-		run("Patch ProjectZomboid64.bat", func() interface{} {
+	batButton := widget.NewButton("Patch PZ Launcher", func() {
+		run("Patch Project Zomboid launcher", func() interface{} {
 			if err := PatchProjectZomboidBat(); err != nil {
 				return "ERROR: " + err.Error()
 			}
@@ -307,10 +327,13 @@ func main() {
 	app := app.New()
 	app.SetIcon(icon)
 	var dwindow fyne.Window
+	branchRefreshStop := make(chan struct{})
 	window := app.NewWindow("ZombieBuddy Installer " + VERSION)
 	window.Resize(fyne.NewSize(400, 200))
+	window.SetFixedSize(true)
 	window.CenterOnScreen()
 	window.SetOnClosed(func() {
+		close(branchRefreshStop)
 		if dwindow != nil {
 			dwindow.Close()
 		}
@@ -338,17 +361,14 @@ func main() {
 	mlayout.Add(logo)
 
 	if runtime.GOOS != "windows" {
-		mlayout.Add(widget.NewLabel("Sorry! This installer only works on Windows systems."))
-		mlayout.Add(widget.NewButton("Exit", func() {
-			app.Quit()
-		}))
+		mlayout.Add(widget.NewLabel("Cross-platform mode: Steam and Project Zomboid paths are detected automatically."))
 	}
 
 	statusLayout := container.NewCenter()
 
 	slabel := widget.NewLabel(readInstallState().message)
-	var ltsButton *widget.Button
-	var betaButton *widget.Button
+	var ltsButton *branchActionButton
+	var betaButton *branchActionButton
 	installBranch := func(branch Branch) {
 		updateInstallState(StatusInstalling, "Starting installation...")
 		slabel.SetText("Starting installation...")
@@ -399,28 +419,96 @@ func main() {
 
 	branchLayout := container.NewGridWithColumns(2)
 
-	ltsButton = widget.NewButton("Install LTS "+GetZBBranchVersion(BranchLTS), func() {
-		installBranch(BranchLTS)
-	})
-	betaButton = widget.NewButton("Install Beta "+GetZBBranchVersion(BranchBeta), func() {
-		installBranch(BranchBeta)
-	})
-	branchLayout.Add(ltsButton)
+	openWorkshop := func(branch Branch) {
+		updateInstallState(StatusWaitingSubscription, "Opening ZombieBuddy Workshop page in Steam...")
+		slabel.SetText("Opening ZombieBuddy Workshop page in Steam...")
+		if err := OpenSteamWorkshopPage(branch); err != nil {
+			updateInstallState(StatusInstallFailed, "Could not open the Steam Workshop page.")
+			slabel.SetText(readInstallState().message)
+			dialog.ShowError(err, window)
+		}
+		slabel.Refresh()
+	}
+	branchButton := func(branch Branch, name string) *branchActionButton {
+		version := GetZBBranchVersion(branch)
+		button := &branchActionButton{
+			menu: fyne.NewMenu("Workshop",
+				fyne.NewMenuItem("Open Workshop page in Steam", func() {
+					openWorkshop(branch)
+				}),
+			),
+		}
+		if version == "(Not subscribed)" {
+			button.Text = "Subscribe to " + name
+			button.OnTapped = func() {
+				openWorkshop(branch)
+			}
+			button.ExtendBaseWidget(button)
+			return button
+		}
+		button.Text = "Install " + name + " " + version
+		button.OnTapped = func() {
+			installBranch(branch)
+		}
+		button.ExtendBaseWidget(button)
+		return button
+	}
 
-	branchLayout.Add(betaButton)
+	ltsVersion := ""
+	betaVersion := ""
+	refreshBranches := func() {
+		if readInstallState().status == StatusInstalling {
+			return
+		}
+
+		nextLTSVersion := GetZBBranchVersion(BranchLTS)
+		nextBetaVersion := GetZBBranchVersion(BranchBeta)
+		if nextLTSVersion == ltsVersion && nextBetaVersion == betaVersion {
+			return
+		}
+
+		ltsVersion = nextLTSVersion
+		betaVersion = nextBetaVersion
+		ltsButton = branchButton(BranchLTS, "LTS")
+		betaButton = branchButton(BranchBeta, "Beta")
+		branchLayout.RemoveAll()
+		branchLayout.Add(ltsButton)
+		branchLayout.Add(betaButton)
+		branchLayout.Refresh()
+	}
+	refreshBranches()
 
 	mlayout.Add(statusLayout)
 	mlayout.Add(branchLayout)
-	githubURL, _ := url.Parse("https://github.com/zed-0xff/ZombieBuddy")
-	websiteURL, _ := url.Parse("https://ipatavatsizz.github.io/zbinstaller")
+	author := func(name, address string) *authorLink {
+		link, err := url.Parse(address)
+		if err != nil {
+			panic(err)
+		}
+		label := &authorLink{url: link}
+		label.Text = name
+		label.ExtendBaseWidget(label)
+		return label
+	}
 	links := container.NewCenter(container.NewHBox(
-		widget.NewLabel("Created by"),
-		widget.NewHyperlink("zed-0xff", githubURL),
+		author("ipatavatsizz", "https://ipatavatsizz.github.io/zbinstaller"),
 		widget.NewLabel("  •  "),
-		widget.NewHyperlink("ZombieBuddy Installer", websiteURL),
+		author("zed-0xff", "https://github.com/zed-0xff/ZombieBuddy"),
 	))
 	mlayout.Add(links)
 
 	window.SetContent(mlayout)
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				fyne.Do(refreshBranches)
+			case <-branchRefreshStop:
+				return
+			}
+		}
+	}()
 	window.ShowAndRun()
 }

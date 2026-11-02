@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func InstallZB(branch Branch) (err error) {
@@ -16,11 +17,26 @@ func InstallZB(branch Branch) (err error) {
 		updateInstallState(StatusInstallFailed, "Installation failed: Project Zomboid path was not found.")
 		return fmt.Errorf("could not find the Project Zomboid installation")
 	}
+	if _, err := GetZBBranchPath(branch); err != nil {
+		updateInstallState(StatusWaitingSubscription, "ZombieBuddy is not subscribed in Steam Workshop.")
+		return fmt.Errorf("could not find ZombieBuddy %s branch", branch)
+	}
+	updateInstallState(StatusInstalling, "Waiting for the Workshop item to finish downloading...")
+	bpath, err := waitForZBBranch(branch, 60*time.Second, func(elapsed time.Duration) {
+		updateInstallState(StatusInstalling, fmt.Sprintf(
+			"Workshop item is downloading. Please wait... %s elapsed.",
+			elapsed,
+		))
+	})
+	if err != nil {
+		updateInstallState(StatusInstallFailed, "Installation failed: the Workshop item did not finish downloading.")
+		return fmt.Errorf("could not prepare the selected Workshop branch: %w", err)
+	}
 	snapshot, err := createInstallSnapshot(append([]string{
 		filepath.Join(PZ_PATH, ZB_FILES[0]),
 		filepath.Join(PZ_PATH, ZB_FILES[1]),
 		filepath.Join(PZ_PATH, "ProjectZomboid64.json"),
-		filepath.Join(PZ_PATH, "ProjectZomboid64.bat"),
+		projectZomboidLauncherPath(PZ_PATH),
 	}, GetConfigPaths()...))
 	if err != nil {
 		updateInstallState(StatusInstallFailed, "Installation failed: could not prepare a rollback snapshot.")
@@ -34,12 +50,6 @@ func InstallZB(branch Branch) (err error) {
 			}
 		}
 	}()
-
-	bpath, err := GetZBBranchPath(branch)
-	if err != nil {
-		updateInstallState(StatusWaitingSubscription, "ZombieBuddy is not subscribed in Steam Workshop.")
-		return fmt.Errorf("could not find ZombieBuddy %s branch", branch)
-	}
 
 	// Steam must be closed before its launch configuration is modified.
 	updateInstallState(StatusInstalling, "Step 2/8: Closing Steam...")
@@ -72,13 +82,19 @@ func InstallZB(branch Branch) (err error) {
 		return fmt.Errorf("could not update the normal launcher: %w", err)
 	}
 
-	updateInstallState(StatusInstalling, "Step 7/8: Patching ProjectZomboid64.bat...")
+	updateInstallState(StatusInstalling, "Step 7/8: Patching Project Zomboid launcher...")
 	if err := PatchProjectZomboidBat(); err != nil {
-		updateInstallState(StatusInstallFailed, "Installation failed while patching ProjectZomboid64.bat.")
+		updateInstallState(StatusInstallFailed, "Installation failed while patching Project Zomboid launcher.")
 		return fmt.Errorf("could not update the alternate launcher: %w", err)
 	}
 
-	updateInstallState(StatusInstallSucceeded, "Installation completed successfully.")
+	updateInstallState(StatusInstalling, "Step 8/8: Starting Steam...")
+	if err := StartSteam(); err != nil {
+		updateInstallState(StatusInstallFailed, "Installation completed, but Steam could not be started.")
+		return fmt.Errorf("installation completed, but could not start Steam: %w", err)
+	}
+
+	updateInstallState(StatusInstallSucceeded, "Installation completed successfully. Steam is starting.")
 	return nil
 }
 

@@ -3,13 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/andygrunwald/vdf"
-	"golang.org/x/sys/windows/registry"
 )
 
 func steamLibraryPaths(steamPath string) ([]string, error) {
@@ -151,6 +149,37 @@ func GetZBBranchPath(branchType Branch) (string, error) {
 	return "", fmt.Errorf("ZombieBuddy Workshop branch is not subscribed: %s", branchType)
 }
 
+func waitForZBBranch(branch Branch, timeout time.Duration, onProgress func(time.Duration)) (string, error) {
+	started := time.Now()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if path := findWorkshopPath(STEAM_PATH, branch); path != "" {
+			ready := true
+			for _, file := range ZB_FILES {
+				info, err := os.Stat(filepath.Join(path, "mods", "ZombieBuddy", "libs", file))
+				if err != nil || info.IsDir() || info.Size() == 0 {
+					ready = false
+					break
+				}
+			}
+			if ready {
+				return path, nil
+			}
+		}
+
+		elapsed := time.Since(started).Round(time.Second)
+		if onProgress != nil {
+			onProgress(elapsed)
+		}
+		if time.Since(started) >= timeout {
+			return "", fmt.Errorf("ZombieBuddy Workshop item did not finish downloading within %s", timeout.Round(time.Second))
+		}
+		<-ticker.C
+	}
+}
+
 func GetZBBranchVersion(branchType Branch) string {
 	path, err := GetZBBranchPath(branchType)
 	if err != nil {
@@ -170,29 +199,8 @@ func GetZBBranchVersion(branchType Branch) string {
 	return strings.TrimSpace(string(version))
 }
 
-func FindSteam() (uint64, error) {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Valve\Steam\ActiveProcess`, registry.QUERY_VALUE)
-	if err != nil {
-		return 0, err
-	}
-	defer k.Close()
-
-	pid, _, err := k.GetIntegerValue("pid")
-	if err != nil {
-		return 0, err
-	}
-
-	return pid, nil
-}
-
 func GetSteamPath() string {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Valve\Steam`, registry.QUERY_VALUE)
-	if err != nil {
-		return ""
-	}
-	defer k.Close()
-
-	path, _, err := k.GetStringValue("SteamPath")
+	path, err := detectSteamPath()
 	if err != nil {
 		return ""
 	}
@@ -204,61 +212,31 @@ func GetSteamPath() string {
 	return path
 }
 
+func steamRootHasMetadata(path string) bool {
+	for _, candidate := range []string{
+		filepath.Join(path, "steamapps"),
+		filepath.Join(path, "steam.sh"),
+		filepath.Join(path, "steam"),
+	} {
+		if _, err := os.Stat(candidate); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func KillSteam() error {
-	running, err := steamProcessRunning()
-	if err != nil {
-		return fmt.Errorf("could not check whether Steam is running: %w", err)
-	}
-	if !running {
-		return nil
-	}
+	return killSteamProcess()
+}
 
-	pid, err := FindSteam()
-	if err != nil {
-		return fmt.Errorf("could not determine whether Steam is running: %w", err)
-	}
-	if pid == 0 {
-		return nil
-	}
+func StartSteam() error {
+	return startSteamProcess()
+}
 
-	p, err := os.FindProcess(int(pid))
-	if err != nil {
-		return fmt.Errorf("could not open Steam process %d: %w", pid, err)
-	}
-
-	if err := p.Kill(); err != nil {
-		return fmt.Errorf("could not close Steam (process %d): %w", pid, err)
-	}
-
-	running, err = steamProcessRunning()
-	if err != nil {
-		return fmt.Errorf("could not verify that Steam closed: %w", err)
-	}
-	if !running {
-		return nil
-	}
-
-	return fmt.Errorf("Steam process %d is still running", pid)
+func OpenSteamWorkshopPage(branch Branch) error {
+	return openSteamWorkshopPage(branch)
 }
 
 func steamProcessRunning() (bool, error) {
-	output, err := exec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/NH").Output()
-	if err != nil {
-		return false, err
-	}
-
-	line := strings.ToLower(string(output))
-	if !strings.Contains(line, "steam.exe") {
-		return false, nil
-	}
-
-	// A localized tasklist response can contain informational text, so require
-	// a numeric PID field rather than relying only on the process name.
-	fields := strings.Fields(line)
-	for _, field := range fields {
-		if _, err := strconv.ParseUint(field, 10, 64); err == nil {
-			return true, nil
-		}
-	}
-	return false, nil
+	return steamProcessIsRunning()
 }
