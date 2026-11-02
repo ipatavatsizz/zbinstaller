@@ -44,7 +44,7 @@ jobs:
             goos: linux
             goarch: amd64
             output: ZombieBuddyInstaller-linux-amd64
-            setup: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libxkbcommon-dev
+            setup: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
           - os: macos-13
             goos: darwin
             goarch: amd64
