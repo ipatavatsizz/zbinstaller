@@ -54,7 +54,7 @@ Before installing, close Project Zomboid and any other process that may be using
 
 ## Building from source
 
-The new Tauri + Rust implementation is in [`installer2/`](./installer2). See its [development guide](./installer2/README.md) and [migration checklist](./installer2/docs/MIGRATION.md). The initial Rust port targets Windows; the Go implementation below remains available.
+The new Tauri + Rust implementation is in [`installer2/`](./installer2). Windows, Linux and macOS installation logic is implemented with fixture tests, persistent backups/recovery and process locks. See its [development guide](./installer2/README.md) and numbered [migration checklist](./installer2/docs/MIGRATION.md). The [Installer 2 workflow](./.github/workflows/installer2.yml) verifies and packages native candidates; real Steam/game and native platform acceptance are required before replacing the Go release workflow below.
 
 The Go module is located in [`installer/`](./installer).
 

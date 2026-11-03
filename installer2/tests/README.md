@@ -1,48 +1,47 @@
 # Test planı
 
-Bu proje Windows üzerinde Steam ve Project Zomboid dosyalarıyla çalışan bir Tauri uygulamasıdır. Testler üç katmanda ayrılır; örnek girdiler `data/` altındadır ve hiçbir test gerçek Steam kurulumuna yazmaz.
+Testler gerçek Steam/oyun kurulumuna yazmaz ve Steam'i kapatmaz. Kaynak fixture'lar salt okunur kullanılır; bütün yazmalar geçici dizinlerde yapılır.
 
-## 1. Rust birim testleri
+## Rust çekirdek testleri
 
-`tests/unit/patch_fixtures.rs`, saf dönüştürme ve doğrulama işlevlerini test eder:
+`cargo test -p installer-core` aşağıdakileri doğrular:
 
-- JSON, BAT ve VDF patch'lerinin beklenen değişikliği yapması ve diğer ayarları koruması.
-- Tekrar çalıştırıldığında aynı sonucu vermesi (idempotency) ve argümanları çoğaltmaması.
-- Branch kimliklerinin serileştirilmesi.
-- `appworkshop_108600.acf` içindeki `WorkshopItemsInstalled` kayıtlarının LTS/Beta Workshop ID’leriyle eşleşmesi.
-- Bozuk JSON/VDF girdilerinin yazılabilir çıktı üretmeden reddedilmesi.
+- JSON/BAT/shell/VDF yamaları, idempotency, diğer uygulama/ayarların korunması.
+- Shebang, satır sonları, mevcut JVM seçenekleri ve eski Unix enjeksiyonunun kaldırılması.
+- BOM, quoted/unquoted VDF, escape ve yorumlar; belirsiz hedeflerin reddedilmesi.
+- Workshop kaydı ve hazır payload'ın aynı kütüphaneden seçilmesi.
+- İndirme beklemesinin iptali ve zaman aşımı; hiçbir süreç işlemi çağrılmaz.
+- Yazma hatası sonrası eski dosyaların geri yüklenmesi, yeni dosya/yedeklerin kaldırılması.
+- Yarım kalmış journal'ın sonraki çalıştırmada kurtarılması ve izin verilmeyen hedeflerin reddi.
+- İkinci dosya tanıtıcısı ve ayrı test sürecinin aynı kurulum kilidini alamaması.
 
-## 2. Dosya sistemi entegrasyon testleri
+## Fixture entegrasyonu
 
-`tests/integration/installation_fixtures.rs`, gerçek dosya sistemi davranışını geçici dizinlerde doğrular:
+[Windows fixture testleri](tests/integration/installation_fixtures.rs) ve [platform eşlik testleri](tests/integration/platform_parity.rs), `cargo test -p installer2-tests` ile çalışır:
 
-- Açıkça verilen Steam/game/config yollarından keşif ve ikincil Steam library çözümleme.
-- İndirme takibinde Steam manifestinin ve payload dosyalarının birlikte hazır olmasının doğrulanması.
-- Fixture'ların patch edilmesi, DLL/JAR payload'larının kopyalanması ve tekrar çalıştırmada idempotency.
-- Patch doğrulaması başarısızsa hiçbir kurulum dosyasının değiştirilmemesi.
-- Uninstall sırasında yalnızca ZombieBuddy payload'larının ve Project Zomboid'e ait launch işaretlerinin kaldırılması; diğer Steam seçeneklerinin korunması.
-- Diagnostics patch aksiyonlarının ilk yedek davranışı ve içerik koruması.
+- Üç platform × iki branch için kurulum, yeniden kurulum ve kaldırma.
+- Platforma uygun payload/flags, iç içe JSON yolu, `.sh`/`.command`/`start-server.sh` seçimi.
+- Native Unix çalıştırma izninin korunması (Unix runner'larında).
+- Eski Go yedeklerinin korunması ve ilk yedeğin yeniden kurulumda değişmemesi.
+- Kaldırmadan önce yapılan kullanıcı ayarlarının korunması; nested Windows VM argümanlarının temizlenmesi.
+- İkinci Steam kullanıcı girdisi bozuksa ilk kullanıcıya veya yedeğe hiçbir yazma yapılmaması.
+- Standart/Flatpak/Snap/macOS yol adayları; oyun yokken kısmi diagnostics raporu.
 
-Geçici dizinler her test sonunda kaldırılır; fixture'lar kaynak olarak salt okunur kullanılır.
+Native adaptörler testlerde gerçek Steam'e yönlendirilmez. [Tauri log testi](../src-tauri/src/session_log.rs) yeniden açılışta log okuma ve diskten temizlemeyi doğrular.
 
-## 3. UI sözleşme testleri
+## UI sözleşmeleri
 
-`ui/` altındaki Vitest/jsdom testleri Tauri komutlarını mock'layarak frontend-backend sınırını test eder:
+`npm run test:ui`, Tauri API'sini mock'layarak branch seçimi, Workshop, indirme beklemesi/iptali, iki branch'in birlikte kilitlenmesi, ilerleme yüzdesi, bitiş/hata mesajları, F5/Escape, menü/kaldırma, diagnostics ve log temizleme davranışlarını sınar. DOM testlerinin gerçek native pencere davranışını doğruladığı iddia edilmez.
 
-- Branch sürümlerinin gösterilmesi; indirilmemiş branch için Workshop açılması ve hazır branch kurulumu.
-- F5 ile diagnostics penceresi açma ve sağ tıkla Workshop açma.
-- Kurulum sürerken butonların kilitlenmesi ve ilerleme mesajının gösterilmesi.
-- Diagnostics raporunun gösterilmesi, her patch aksiyonunun doğru komuta yönlenmesi ve log temizleme.
-
-## Çalıştırma
-
-`installer2/` dizininden:
+## Tam kontrol
 
 ```powershell
-cargo test -p installer2-tests
-npm run test:ui
 npm run build
-cargo check -p installer2
+npm run test:ui
+cargo fmt --all -- --check
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+npm run tauri build
 ```
 
-Gerçek Windows Registry, Steam süreci, WebView pencere odağı ve Steam istemcisinin başlatılması host entegrasyonlarıdır; bunları CI'da değiştirmek yerine Windows test makinesinde kontrollü kabul testi olarak doğrulayın.
+[Üç platform workflow](../../.github/workflows/installer2.yml) aynı kontrolleri native runner'larda çalıştırır. Native UI/Steam/oyun kabulü ve imza gereksinimleri [migration checklist'te](../docs/MIGRATION.md) ayrı tutulur. Windows'ta üç hedefin dosya düzenini test etmek Linux/macOS native testi sayılmaz.
