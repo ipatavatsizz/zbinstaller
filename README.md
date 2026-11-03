@@ -103,7 +103,7 @@ The output binaries are written to the `installer` directory.
 
 ## Automated releases
 
-Pushing a version tag such as `v4.5.1` starts the GitHub Actions release workflow. It builds native Windows amd64, Linux amd64, and macOS arm64 artifacts on the current GitHub-hosted `latest` runners and publishes them to one GitHub Release.
+Pushing a date-based version tag such as `v26.11.3` starts the GitHub Actions release workflow. It builds native Windows amd64, Linux amd64, and macOS arm64 artifacts on the current GitHub-hosted `latest` runners and publishes them to one GitHub Release.
 
 Linux and macOS builds are experimental and may not work on every distribution or system. The macOS release targets Apple Silicon (arm64); Intel macOS is not included. A local Linux or macOS machine is not required for the release build.
 

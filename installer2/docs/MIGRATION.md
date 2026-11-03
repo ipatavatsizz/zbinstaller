@@ -36,6 +36,6 @@ Do not replace the existing Go release pipeline until the required platform acce
 - `cargo check -p installer2`: passed (Tauri application and Windows dependencies).
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed.
 - `npx tauri info`: MSVC, Rust and WebView2 prerequisites detected.
-- Follow-up UI work: legacy main-window layout, separate F5 diagnostics window and centered/focused startup are implemented; run a manual WebView2 smoke test to confirm Windows focus behavior.
+- Follow-up UI work: a resizable main window, dedicated diagnostics controls, reusable diagnostics window and centered/focused startup are implemented; run a manual WebView2 smoke test to confirm Windows focus behavior.
 
 No real Steam/game files were modified during validation. Native UI launch, NSIS packaging and end-to-end installation remain unverified.

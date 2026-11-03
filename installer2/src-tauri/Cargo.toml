@@ -1,12 +1,14 @@
 [package]
 name = "installer2"
-version = "0.1.0"
+version = "26.11.3"
 edition = "2024"
+authors = ["ipatavatsizz"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 installer-core = { path = "../crates/installer-core" }

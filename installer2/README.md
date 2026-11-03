@@ -28,7 +28,7 @@ The fixture-based Rust unit/integration tests and mocked UI tests are described 
 
 The Windows NSIS installer is produced under `target/release/bundle/nsis/`.
 `npm run dev` alone serves the UI; native commands require `npm run tauri dev`.
-The main window follows the compact Fyne layout. Press **F5** inside it to open the separate diagnostics window; right-click a branch button to open its Workshop page.
+The main window follows the Fyne layout in a resizable window. Use a branch card's additional actions to open its Workshop page or uninstall ZombieBuddy. Diagnostics is available from the diagnostics controls.
 
 ## Current behavior
 

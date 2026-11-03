@@ -3,5 +3,5 @@
   "identifier": "main-window",
   "description": "Only local installer commands and progress events.",
   "windows": ["main", "diagnostics"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "opener:allow-open-url", "opener:allow-default-urls"]
 }

@@ -243,6 +243,7 @@ async fn open_workshop(branch: Branch, state: State<'_, AppState>) -> Result<(),
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -265,14 +266,16 @@ fn main() {
             open_diagnostics
         ])
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event
-                && window.state::<AppState>().busy.load(Ordering::Acquire)
-            {
-                api.prevent_close();
-            } else if window.label() == "main"
-                && matches!(event, tauri::WindowEvent::CloseRequested { .. })
-            {
-                window.app_handle().exit(0);
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.state::<AppState>().busy.load(Ordering::Acquire) {
+                    api.prevent_close();
+                } else if window.label() == "diagnostics" {
+                    // Keep the singleton diagnostics webview alive so it can be reopened.
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if window.label() == "main" {
+                    window.app_handle().exit(0);
+                }
             }
         })
         .run(tauri::generate_context!())

@@ -101,7 +101,7 @@ func clearInstallLog() {
 }
 
 const (
-	VERSION = "4.5.1"
+	VERSION = "26.11.3"
 	PZ_APP  = "108600"
 )
 

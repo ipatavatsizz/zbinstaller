@@ -1,6 +1,6 @@
 [package]
 name = "installer2-tests"
-version = "0.1.0"
+version = "26.11.3"
 edition = "2024"
 publish = false
 

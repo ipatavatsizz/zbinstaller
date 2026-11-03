@@ -14,7 +14,7 @@ TypeScript view -> typed IPC adapter -> Tauri commands -> installer-core
 
 The Tauri layer owns operation lifetime and event transport. Its atomic operation guard moves into the blocking worker and resets on drop, including error/panic unwinding. Both installation and Workshop launch acquire this guard. The frontend disables controls for usability; the backend independently enforces exclusivity.
 
-The compact main window mirrors the legacy Fyne screen. Pressing F5 while it is focused opens a separate native diagnostics window backed by a second Vite entry point. That window reads live install status and paths and exposes the legacy manual patch actions; the main window stays independent.
+The resizable main window presents the install branches and a fixed activity panel. Diagnostics opens from its dedicated controls and uses a reusable secondary native window backed by a second Vite entry point. That window reads live install status and paths and exposes the manual patch actions.
 
 ## Transaction boundary
 
