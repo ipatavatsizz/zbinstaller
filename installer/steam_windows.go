@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows/registry"
@@ -99,7 +100,9 @@ func FindSteam() (uint64, error) {
 }
 
 func steamProcessIDs() ([]int, error) {
-	output, err := exec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/FO", "CSV", "/NH").Output()
+	command := exec.Command("tasklist", "/FI", "IMAGENAME eq steam.exe", "/FO", "CSV", "/NH")
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := command.Output()
 	if err != nil {
 		return nil, err
 	}

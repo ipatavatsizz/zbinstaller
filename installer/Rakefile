@@ -3,7 +3,8 @@ def build_for(goos, goarch, output)
   old_goarch = ENV["GOARCH"]
   ENV["GOOS"] = goos
   ENV["GOARCH"] = goarch
-  sh "go build -o #{output}"
+  ldflags = goos == "windows" ? "-s -w -H=windowsgui" : "-s -w"
+  sh "go build -ldflags '#{ldflags}' -o #{output}"
 ensure
   ENV["GOOS"] = old_goos
   ENV["GOARCH"] = old_goarch

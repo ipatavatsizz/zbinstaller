@@ -39,16 +39,19 @@ jobs:
             goos: windows
             goarch: amd64
             output: ZombieBuddyInstaller-windows-amd64.exe
+            ldflags: "-s -w -H=windowsgui"
             setup: ""
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
             output: ZombieBuddyInstaller-linux-amd64
+            ldflags: "-s -w"
             setup: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
           - os: macos-latest
             goos: darwin
             goarch: arm64
             output: ZombieBuddyInstaller-macos-arm64
+            ldflags: "-s -w"
             setup: ""
     runs-on: ${{ matrix.os }}
     steps:
@@ -72,7 +75,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"
-        run: go build -trimpath -ldflags "-s -w" -o "${{ matrix.output }}" .
+        run: go build -trimpath -ldflags "${{ matrix.ldflags }}" -o "${{ matrix.output }}" .
 
       - name: Run tests
         if: runner.os == 'Windows'

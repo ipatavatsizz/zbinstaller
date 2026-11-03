@@ -168,42 +168,50 @@ func openDebugWindow(a fyne.App, onClosed func()) fyne.Window {
 	libraries := widget.NewLabel("No Steam libraries loaded.")
 	files := widget.NewLabel("Launcher files: not checked")
 	refreshDetails := func() {
-		refresh()
-		paths := GetConfigPaths()
-		if len(paths) == 0 {
-			configs.SetText("Steam configs: none found")
-		} else {
-			configs.SetText("Steam configs:\n" + strings.Join(paths, "\n"))
-		}
-		libraryPaths, err := steamLibraryPaths(STEAM_PATH)
-		if err != nil {
-			libraries.SetText("Steam libraries: " + err.Error())
-		} else {
-			libraries.SetText("Steam libraries:\n" + strings.Join(libraryPaths, "\n"))
-		}
-		steamState := "not running"
-		if running, err := steamProcessRunning(); err != nil {
-			steamState = "check failed: " + err.Error()
-		} else if running {
-			steamState = "running"
-		}
-		jsonPath := filepath.Join(PZ_PATH, "ProjectZomboid64.json")
-		launcherPath := projectZomboidLauncherPath(PZ_PATH)
-		files.SetText(fmt.Sprintf(
-			"Launcher files:\nProjectZomboid64.json: %s\n%s: %s\n%s: %s\n%s: %s",
-			debugFileState(jsonPath),
-			filepath.Base(launcherPath), debugFileState(launcherPath),
-			ZB_FILES[0], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[0])),
-			ZB_FILES[1], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[1])),
-		))
-		appendLog("Diagnostics refreshed", fmt.Sprintf(
-			"Steam process=%s; localconfig files=%d; libraries=%d; LTS=%s; Beta=%s",
-			steamState,
-			len(paths),
-			len(libraryPaths),
-			GetZBBranchVersion(BranchLTS),
-			GetZBBranchVersion(BranchBeta),
-		))
+		go func() {
+			paths := GetConfigPaths()
+			libraryPaths, err := steamLibraryPaths(STEAM_PATH)
+			libraryText := ""
+			if err != nil {
+				libraryText = "Steam libraries: " + err.Error()
+			} else {
+				libraryText = "Steam libraries:\n" + strings.Join(libraryPaths, "\n")
+			}
+
+			steamState := "not running"
+			if running, err := steamProcessRunning(); err != nil {
+				steamState = "check failed: " + err.Error()
+			} else if running {
+				steamState = "running"
+			}
+
+			jsonPath := filepath.Join(PZ_PATH, "ProjectZomboid64.json")
+			launcherPath := projectZomboidLauncherPath(PZ_PATH)
+			fileText := fmt.Sprintf(
+				"Launcher files:\nProjectZomboid64.json: %s\n%s: %s\n%s: %s\n%s: %s",
+				debugFileState(jsonPath),
+				filepath.Base(launcherPath), debugFileState(launcherPath),
+				ZB_FILES[0], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[0])),
+				ZB_FILES[1], debugFileState(filepath.Join(PZ_PATH, ZB_FILES[1])),
+			)
+			ltsVersion := GetZBBranchVersion(BranchLTS)
+			betaVersion := GetZBBranchVersion(BranchBeta)
+
+			fyne.Do(func() {
+				refresh()
+				if len(paths) == 0 {
+					configs.SetText("Steam configs: none found")
+				} else {
+					configs.SetText("Steam configs:\n" + strings.Join(paths, "\n"))
+				}
+				libraries.SetText(libraryText)
+				files.SetText(fileText)
+				appendLog("Diagnostics refreshed", fmt.Sprintf(
+					"Steam process=%s; localconfig files=%d; libraries=%d; LTS=%s; Beta=%s",
+					steamState, len(paths), len(libraryPaths), ltsVersion, betaVersion,
+				))
+			})
+		}()
 	}
 
 	refreshButton := widget.NewButton("Refresh Diagnostics", refreshDetails)
@@ -319,11 +327,7 @@ func debugFileState(path string) string {
 }
 
 func main() {
-	icon, err := fyne.LoadResourceFromPath("./icon.png")
-	if err != nil {
-		fmt.Printf("[!] Failed to load icon: %v\n", err)
-	}
-
+	icon := applicationIcon()
 	app := app.New()
 	app.SetIcon(icon)
 	var dwindow fyne.Window
