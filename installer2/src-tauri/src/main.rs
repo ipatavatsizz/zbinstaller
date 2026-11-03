@@ -6,13 +6,15 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use tauri::{Emitter, Manager, State};
+mod session_log;
+use session_log::SessionLog;
 
 struct AppState {
     busy: Arc<AtomicBool>,
     cancel_install: Arc<AtomicBool>,
     status: Mutex<String>,
     message: Mutex<String>,
-    log: Mutex<Vec<String>>,
+    log: Mutex<SessionLog>,
 }
 
 impl Default for AppState {
@@ -22,7 +24,7 @@ impl Default for AppState {
             cancel_install: Arc::default(),
             status: Mutex::new("Idle".into()),
             message: Mutex::new("Ready. Select an installation option.".into()),
-            log: Mutex::new(Vec::new()),
+            log: Mutex::new(SessionLog::default()),
         }
     }
 }
@@ -36,12 +38,12 @@ fn record(app: &tauri::AppHandle, status: &str, message: &str) {
         *current = message.to_owned();
     }
     if let Ok(mut entries) = state.log.lock() {
-        entries.push(format!("[{}] {message}", chrono_time()));
+        entries.push(format!("[{} UTC] {message}", chrono_time()));
     }
 }
 
 fn chrono_time() -> String {
-    // A compact local clock for the debug log; avoid adding a date/time dependency.
+    // UTC is explicit so logs remain comparable across native platforms.
     use std::time::{SystemTime, UNIX_EPOCH};
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -75,10 +77,17 @@ impl Drop for OperationGuard {
 
 #[tauri::command]
 async fn discover_installation() -> Result<Discovery, String> {
-    tauri::async_runtime::spawn_blocking(installer_core::discover)
+    tauri::async_runtime::spawn_blocking(installer_core::inspect)
         .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| format!("{e:#}"))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn close_window(window: tauri::WebviewWindow, state: State<'_, AppState>) -> Result<(), String> {
+    if state.busy.load(Ordering::Acquire) {
+        return Err("Wait for the current operation to finish".into());
+    }
+    window.close().map_err(|error| error.to_string())
 }
 
 #[derive(serde::Serialize)]
@@ -106,6 +115,7 @@ fn diagnostic_state(state: State<'_, AppState>) -> Result<DiagnosticStateView, S
             .log
             .lock()
             .map_err(|_| "Log lock poisoned".to_owned())?
+            .entries
             .clone(),
     })
 }
@@ -116,7 +126,8 @@ fn clear_diagnostic_log(state: State<'_, AppState>) -> Result<(), String> {
         .log
         .lock()
         .map_err(|_| "Log lock poisoned".to_owned())?
-        .clear();
+        .clear()
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
@@ -231,11 +242,34 @@ fn open_diagnostics(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn open_workshop(branch: Branch, state: State<'_, AppState>) -> Result<(), String> {
+async fn open_workshop(
+    branch: Branch,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let guard = OperationGuard::acquire(&state)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
-        installer_core::open_workshop(branch).map_err(|e| format!("{e:#}"))
+        record(
+            &app,
+            "WaitingSubscription",
+            "Opening the selected Workshop page in Steam…",
+        );
+        match installer_core::open_workshop(branch) {
+            Ok(()) => {
+                record(
+                    &app,
+                    "WaitingSubscription",
+                    "Workshop opened. Subscribe, then install when ready.",
+                );
+                Ok(())
+            }
+            Err(error) => {
+                let message = format!("{error:#}");
+                record(&app, "Failed", &message);
+                Err(message)
+            }
+        }
     })
     .await
     .map_err(|e| e.to_string())?
@@ -246,6 +280,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .setup(|app| {
+            let state = app.state::<AppState>();
+            *state.log.lock().map_err(|_| "Log lock poisoned")? =
+                SessionLog::open(app.path().app_log_dir()?.join("installer.log"))?;
             if let Some(window) = app.get_webview_window("main") {
                 window.center()?;
                 window.show()?;
@@ -263,7 +300,8 @@ fn main() {
             cancel_install,
             uninstall_zombiebuddy,
             open_workshop,
-            open_diagnostics
+            open_diagnostics,
+            close_window
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

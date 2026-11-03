@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 
-const api = vi.hoisted(() => ({ discover: vi.fn(), install: vi.fn(), uninstall: vi.fn(), openWorkshop: vi.fn(), openDiagnostics: vi.fn(), onProgress: vi.fn() }));
+const api = vi.hoisted(() => ({ discover: vi.fn(), install: vi.fn(), uninstall: vi.fn(), cancelInstall: vi.fn(), openWorkshop: vi.fn(), openDiagnostics: vi.fn(), closeWindow: vi.fn(), openProjectPage: vi.fn(), onProgress: vi.fn() }));
 vi.mock('../../src/api', () => api);
 
 const branches = (ltsPath: string | null = 'C:/Workshop/LTS', ltsReady = Boolean(ltsPath)) => ({
-  steamPath: 'C:/Steam', gamePath: 'C:/Steam/steamapps/common/ProjectZomboid', libraries: ['C:/Steam'], configPaths: [],
+  platform: 'windows', steamPath: 'C:/Steam', gamePath: 'C:/Steam/steamapps/common/ProjectZomboid', libraries: ['C:/Steam'], configPaths: [],
   files: [{ name: 'zbNative.dll', exists: true, size: 42 }],
   branches: [
     { branch: 'lts', path: ltsPath, version: ltsPath ? '2.3.4' : null, ready: ltsReady },
@@ -21,66 +21,108 @@ describe('main window UI contract', () => {
     api.uninstall.mockReset().mockResolvedValue('ZombieBuddy was uninstalled successfully.');
     api.openWorkshop.mockReset().mockResolvedValue(undefined);
     api.openDiagnostics.mockReset().mockResolvedValue(undefined);
-    api.onProgress.mockReset().mockReturnValue(() => undefined);
+    api.closeWindow.mockReset().mockResolvedValue(undefined);
+    api.cancelInstall.mockReset().mockResolvedValue(undefined);
+    api.onProgress.mockReset().mockResolvedValue(() => undefined);
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     vi.spyOn(window, 'setInterval').mockReturnValue(1);
     vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it('shows discovered branch versions and follows system appearance', async () => {
+  it('shows discovered branch versions, system appearance and a diagnostics control', async () => {
     const { App } = await import('../../src/main');
     render(createElement(App));
-    expect(await screen.findByText('Version 2.3.4')).toBeTruthy();
-    expect(screen.getByLabelText('System theme: dark')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /install · 2.3.4/i })).toBeTruthy();
+    expect(screen.getByLabelText('Switch to light theme')).toBeTruthy();
     expect(document.documentElement.classList.contains('dark')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /diagnostics/i }));
+    expect(api.openDiagnostics).toHaveBeenCalledOnce();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(api.closeWindow).toHaveBeenCalledOnce();
   });
 
-  it('opens the Workshop page for an unsubscribed branch and installs a ready build', async () => {
+  it('opens Workshop for an unsubscribed branch and installs the selected ready build', async () => {
     api.discover.mockResolvedValue(branches(null));
     const { App } = await import('../../src/main');
     render(createElement(App));
-    fireEvent.click(await screen.findByRole('button', { name: /get this version/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /subscribe to build/i }));
     await waitFor(() => expect(api.openWorkshop).toHaveBeenCalledWith('lts'));
-    fireEvent.click(screen.getByRole('button', { name: /install update/i }));
+    const button = await screen.findByRole('button', { name: /install · 3.0.0-beta3/i });
+    await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+    fireEvent.click(button);
     await waitFor(() => expect(api.install).toHaveBeenCalledWith('beta'));
   });
 
-  it('lets Steam finish a subscribed item before beginning installation', async () => {
+  it('waits for a subscribed download, converts steps to percent, cancels and displays the final result', async () => {
     api.discover.mockResolvedValue(branches('C:/Workshop/LTS', false));
+    let reject!: (error: Error) => void;
+    let progress!: (value: { step: number; message: string }) => void;
+    const stop = vi.fn();
+    api.install.mockReturnValue(new Promise<string>((_, fail) => { reject = fail; }));
+    api.onProgress.mockImplementation(callback => { progress = callback; return Promise.resolve(stop); });
     const { App } = await import('../../src/main');
     render(createElement(App));
     fireEvent.click(await screen.findByRole('button', { name: /wait for download/i }));
+    await act(async () => { await Promise.resolve(); });
     await waitFor(() => expect(api.install).toHaveBeenCalledWith('lts'));
+    act(() => progress({ step: 1, message: 'Waiting for Steam to finish downloading the Workshop build…' }));
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('13');
+    fireEvent.click(screen.getByRole('button', { name: /cancel download wait/i }));
+    expect(api.cancelInstall).toHaveBeenCalledOnce();
+    await act(async () => reject(new Error('Installation cancelled')));
+    expect(await screen.findByText('Error: Installation cancelled')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(stop).toHaveBeenCalledOnce();
   });
 
-  it('opens diagnostics with F5 and reveals secondary actions after a long hover', async () => {
+  it('opens diagnostics with F5 and supports context menus and uninstall on Unix', async () => {
+    const found = branches();
+    found.files = [{ name: 'libzbNative.so', exists: true, size: 42 }];
+    api.discover.mockResolvedValue(found);
     const { App } = await import('../../src/main');
     render(createElement(App));
+    await screen.findByRole('button', { name: /install · 2.3.4/i });
     const keyEvent = new KeyboardEvent('keydown', { key: 'F5', cancelable: true });
     document.dispatchEvent(keyEvent);
     expect(keyEvent.defaultPrevented).toBe(true);
     expect(api.openDiagnostics).toHaveBeenCalledOnce();
-
-    fireEvent.mouseEnter(screen.getByText('Stable release').closest('section')!);
-    await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 600)); });
-    expect(screen.getByRole('button', { name: /open workshop page/i })).toBeTruthy();
+    fireEvent.contextMenu(screen.getByText('Stable release').closest('section')!);
     fireEvent.click(screen.getByRole('button', { name: /uninstall zombiebuddy/i }));
     await waitFor(() => expect(api.uninstall).toHaveBeenCalledOnce());
   });
 
-  it('disables installation while the backend reports progress', async () => {
+  it('disables both branches during installation and clears progress after success', async () => {
     let finish!: (value: string) => void;
+    let progress!: (value: { step: number; message: string }) => void;
     api.install.mockReturnValue(new Promise<string>(resolve => { finish = resolve; }));
-    api.onProgress.mockImplementation((callback: (value: { step: number; message: string }) => void) => {
-      callback({ step: 3, message: 'Copying library…' });
-      return () => undefined;
-    });
+    api.onProgress.mockImplementation(callback => { progress = callback; return Promise.resolve(() => undefined); });
     const { App } = await import('../../src/main');
     render(createElement(App));
-    fireEvent.click((await screen.findAllByRole('button', { name: /install update/i }))[0]!);
-    expect(await screen.findByText('Copying library…')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /working/i }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(await screen.findByRole('button', { name: /install · 2.3.4/i }));
+    await act(async () => { await Promise.resolve(); });
+    await waitFor(() => expect(api.install).toHaveBeenCalledOnce());
+    act(() => progress({ step: 4, message: 'Copying library…' }));
+    expect(screen.getByText('Copying library… (50%)')).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /working/i }).every(button => button.hasAttribute('disabled'))).toBe(true);
     await act(async () => finish('Installation completed.'));
+    expect(await screen.findByText('Installation completed.')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('shows terminal install errors even after progress has been received', async () => {
+    let fail!: (error: Error) => void;
+    let progress!: (value: { step: number; message: string }) => void;
+    api.install.mockReturnValue(new Promise<string>((_, reject) => { fail = reject; }));
+    api.onProgress.mockImplementation(callback => { progress = callback; return Promise.resolve(() => undefined); });
+    const { App } = await import('../../src/main');
+    render(createElement(App));
+    fireEvent.click(await screen.findByRole('button', { name: /install · 2.3.4/i }));
+    await act(async () => { await Promise.resolve(); });
+    await waitFor(() => expect(api.install).toHaveBeenCalledOnce());
+    act(() => progress({ step: 3, message: 'Updating launcher' }));
+    await act(async () => fail(new Error('Installation failed; original files restored')));
+    expect(await screen.findByText('Error: Installation failed; original files restored')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 });

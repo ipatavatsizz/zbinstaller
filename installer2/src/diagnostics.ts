@@ -23,7 +23,7 @@ async function refresh() {
   try {
     const [report, state] = await Promise.all([api.diagnosticReport(), api.diagnosticState()]);
     const data = report.discovery;
-    summary.textContent = `Status: ${state.status}\nMessage: ${state.message}\n\nSteam: ${data.steamPath} (${report.steamRunning ? 'running' : 'available'})\nProject Zomboid: ${data.gamePath} (available)\n\nLTS: ${data.branches[0]?.version ?? '(Not subscribed)'}; Beta: ${data.branches[1]?.version ?? '(Not subscribed)'}`;
+    summary.textContent = `Status: ${state.status}\nMessage: ${state.message}\n\nSteam: ${data.steamPath || '(not detected)'} (${report.steamRunning ? 'running' : 'not running'})\nProject Zomboid: ${data.gamePath || '(not detected)'}\n\nLTS: ${data.branches[0]?.version ?? (data.branches[0]?.path ? 'Version not found' : '(Not subscribed)')}; Beta: ${data.branches[1]?.version ?? (data.branches[1]?.path ? 'Version not found' : '(Not subscribed)')}${data.warnings?.length ? '\n\n' + data.warnings.join('\n') : ''}`;
     configs.textContent = data.configPaths.length ? data.configPaths.join('\n') : 'No Steam user configurations found.';
     libraries.textContent = data.libraries.join('\n');
     files.textContent = data.files.map(file => `${file.name}: ${file.exists ? `available (${file.size ?? 0} bytes)` : 'missing'}`).join('\n');
@@ -53,8 +53,11 @@ element('patch-steam').addEventListener('click', () => void runAction('steam'));
 element('patch-json').addEventListener('click', () => void runAction('json'));
 element('patch-launcher').addEventListener('click', () => void runAction('launcher'));
 element('clear-log').addEventListener('click', async () => {
-  log.textContent = '';
-  await api.clearDiagnosticLog();
+  try { await api.clearDiagnosticLog(); log.textContent = ''; }
+  catch (error) { append(`ERROR: ${String(error)}`); }
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') void api.closeWindow().catch(error => append(String(error)));
 });
 void refresh();
 window.setInterval(() => { if (!actionBusy) void refresh(); }, 1000);

@@ -5,7 +5,7 @@ import './style.css';
 import { Button } from './components/ui/button';
 import { Card } from './components/ui/card';
 import * as api from './api';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import logo from './assets/zombiebuddy.png';
 import { ArrowDownToLine, ChevronDown, ExternalLink, Moon, RefreshCw, Sun, Trash2 } from 'lucide-react';
 
 function GithubMark() {
@@ -30,17 +30,15 @@ function ThemeController() {
   </button>;
 }
 
-function BranchCard({ branch, label, description, installed, hasInstalled, onRefresh, onUninstall, onStatus }: {
+function BranchCard({ branch, label, description, installed, hasInstalled, busy, waiting, onInstall, onWorkshop, onUninstall, onCancel }: {
   branch: api.Branch; label: string; description: string; installed: api.BranchInfo | undefined;
-  hasInstalled: boolean; onRefresh: () => void; onUninstall: () => void; onStatus: (message: string) => void;
+  hasInstalled: boolean; busy: boolean; waiting: boolean; onInstall: () => void; onWorkshop: () => void; onUninstall: () => void; onCancel: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState('');
-  const reportStatus = (message: string) => { setStatus(message); onStatus(message); };
   const timer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
   const longHover = () => {
+    window.clearTimeout(timer.current);
     window.clearTimeout(closeTimer.current);
     timer.current = window.setTimeout(() => setOpen(true), 550);
   };
@@ -50,36 +48,19 @@ function BranchCard({ branch, label, description, installed, hasInstalled, onRef
   };
   useEffect(() => () => { window.clearTimeout(timer.current); window.clearTimeout(closeTimer.current); }, []);
 
-  async function install() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (!installed?.path) {
-        await api.openWorkshop(branch);
-        reportStatus('Workshop opened in Steam. Subscribe, then install when ready.');
-      } else if (!installed.ready) {
-        reportStatus('Warning: Steam is still downloading this build. Wait for the download to finish.');
-      } else {
-        const unlisten = await api.onProgress(value => reportStatus(value.message));
-        try { reportStatus(await api.install(branch)); } finally { unlisten(); }
-      }
-    } catch (error) { reportStatus(String(error)); }
-    finally { setBusy(false); onRefresh(); }
-  }
-
-  return <Card className="branch-card" onMouseEnter={longHover} onMouseLeave={dismiss} onTouchStart={longHover} onTouchEnd={dismiss} onFocus={longHover} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) dismiss(); }}>
+  return <Card className="branch-card" onContextMenu={event => { event.preventDefault(); setOpen(true); }} onMouseEnter={longHover} onMouseLeave={dismiss} onTouchStart={longHover} onTouchEnd={dismiss} onFocus={longHover} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) dismiss(); }}>
     <div className="branch-heading">
       <div className={`branch-mark ${branch}`}><span>{branch === 'lts' ? 'L' : 'β'}</span></div>
       <div className="branch-copy"><div className="branch-title-row"><h2>{label}</h2></div><p>{description}</p></div>
-      <ChevronDown className={`more-chevron ${open ? 'is-open' : ''}`} size={17} />
+      <Button variant="ghost" size="icon" aria-label={`${label} actions`} aria-expanded={open} onClick={() => setOpen(value => !value)}><ChevronDown className={`more-chevron ${open ? 'is-open' : ''}`} size={17} /></Button>
     </div>
-    <Button className={`install-button ${installed?.ready ? 'install-ready' : 'install-warning'}`} onClick={() => void install()} disabled={busy}>
+    <Button className={`install-button ${installed?.ready ? 'install-ready' : 'install-warning'}`} onClick={installed?.path ? onInstall : onWorkshop} disabled={busy || !installed}>
       {busy ? <RefreshCw size={15} className="spin" /> : <ArrowDownToLine size={15} />}
-      {busy ? 'Working…' : installed?.path ? (installed.ready ? `Install · ${installed.version ?? 'Ready'}` : `Warning · Downloading${installed.version ? ` · ${installed.version}` : ''}`) : `Warning · Subscribe${installed?.version ? ` · ${installed.version}` : ' to build'}`}
+      {busy ? 'Working…' : installed?.path ? (installed.ready ? `Install · ${installed.version ?? 'Version not found'}` : `Wait for download${installed.version ? ` · ${installed.version}` : ''}`) : 'Subscribe to build'}
     </Button>
-    {busy && status.includes('Waiting for Steam') && <Button variant="ghost" size="sm" className="cancel-button" onClick={() => void api.cancelInstall().catch(error => setStatus(String(error)))}>Cancel download wait</Button>}
+    {waiting && <Button variant="ghost" size="sm" className="cancel-button" onClick={onCancel}>Cancel download wait</Button>}
     <div className={`branch-menu ${open ? 'branch-menu-open' : ''}`} aria-hidden={!open} inert={!open}>
-      <Button variant="ghost" size="sm" disabled={busy} onClick={() => void api.openWorkshop(branch).then(() => reportStatus('Workshop page opened in Steam.')).catch(error => reportStatus(String(error)))}><ExternalLink size={14} /> Open Workshop page</Button>
+      <Button variant="ghost" size="sm" disabled={busy} onClick={onWorkshop}><ExternalLink size={14} /> Open Workshop page</Button>
       <Button variant="ghost" size="sm" disabled={busy || !hasInstalled} onClick={onUninstall}><Trash2 size={14} /> Uninstall ZombieBuddy</Button>
     </div>
   </Card>;
@@ -89,42 +70,72 @@ export function App() {
   const [data, updateDiscovery] = useState<api.Discovery>();
   const [status, updateStatus] = useState('Finding your Steam installation…');
   const [progress, updateProgress] = useState<api.Progress>();
-  const refresh = () => void api.discover().then(updateDiscovery).catch(error => updateStatus(String(error)));
-  const requestUninstall = async () => {
-    if (!window.confirm('Remove ZombieBuddy from Project Zomboid? This removes its installed files and launch options.')) return;
-    try { updateStatus('Uninstalling ZombieBuddy…'); updateStatus(await api.uninstall()); }
-    catch (error) { updateStatus(String(error)); }
-    finally { void api.discover().then(updateDiscovery).catch(() => undefined); }
+  const [activeBranch, setActiveBranch] = useState<api.Branch>();
+  const [busy, setBusy] = useState(false);
+  const operation = useRef(false);
+  const reportStatus = (message: string) => { updateProgress(undefined); updateStatus(message); };
+  const refresh = () => void api.discover().then(updateDiscovery).catch(error => { if (!operation.current) reportStatus(String(error)); });
+
+  async function perform(action: () => Promise<string>) {
+    if (operation.current) return;
+    operation.current = true;
+    setBusy(true);
+    updateProgress(undefined);
+    try { reportStatus(await action()); }
+    catch (error) { reportStatus(String(error)); }
+    finally { operation.current = false; setBusy(false); setActiveBranch(undefined); refresh(); }
+  }
+
+  const install = (branch: api.Branch) => void perform(async () => {
+    setActiveBranch(branch);
+    updateStatus('Starting installation…');
+    const unlisten = await api.onProgress(value => { updateProgress(value); updateStatus(value.message); });
+    try { return await api.install(branch); } finally { unlisten(); }
+  });
+  const workshop = (branch: api.Branch) => void perform(async () => {
+    await api.openWorkshop(branch);
+    return 'Workshop opened in Steam. Subscribe, then install when ready.';
+  });
+  const requestUninstall = () => {
+    if (operation.current || !window.confirm('Remove ZombieBuddy from Project Zomboid? This removes its installed files and launch options.')) return;
+    void perform(async () => { updateStatus('Uninstalling ZombieBuddy…'); return await api.uninstall(); });
   };
+  const diagnostics = () => void api.openDiagnostics().catch(error => reportStatus(String(error)));
 
   useEffect(() => {
     let mounted = true;
     let firstLoad = true;
-    const refresh = () => void api.discover().then(value => { if (mounted) { updateDiscovery(value); if (firstLoad) updateStatus('Choose a ZombieBuddy version to install.'); firstLoad = false; } })
-      .catch(error => { if (mounted) updateStatus(String(error)); });
+    const refresh = () => void api.discover().then(value => {
+      if (!mounted) return;
+      updateDiscovery(value);
+      if (firstLoad && !operation.current) updateStatus(value.warnings?.length ? value.warnings.join('\n') : 'Choose a ZombieBuddy version to install.');
+      firstLoad = false;
+    }).catch(error => { if (mounted && !operation.current) updateStatus(String(error)); });
     refresh();
-    const interval = window.setInterval(refresh, 5000);
+    const interval = window.setInterval(refresh, 3000);
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !operation.current) { void api.closeWindow().catch(error => updateStatus(String(error))); return; }
       if (event.key !== 'F5') return;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      void api.openDiagnostics().catch(error => updateStatus(String(error)));
+      void api.openDiagnostics().catch(error => { if (mounted) updateStatus(String(error)); });
     };
     document.addEventListener('keydown', onKey, true);
-    const unlisten = api.onProgress(value => { updateProgress(value); updateStatus(value.message); });
-    return () => { mounted = false; window.clearInterval(interval); document.removeEventListener('keydown', onKey, true); void unlisten.then(stop => stop()); };
+    return () => { mounted = false; window.clearInterval(interval); document.removeEventListener('keydown', onKey, true); };
   }, []);
 
   const installed = (branch: api.Branch) => data?.branches.find(item => item.branch === branch);
+  const hasInstalled = !!data?.files.some(file => ['zbNative.dll', 'libzbNative.so', 'libzbNative.dylib', 'ZombieBuddy.jar'].includes(file.name) && file.exists);
+  const percentage = progress ? Math.round(progress.step / 8 * 100) : 0;
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><img src="/src/assets/zombiebuddy.png" alt="" /><div><span className="eyebrow">PROJECT ZOMBOID</span><h1>ZombieBuddy <span>Installer</span></h1></div></div><div className="topbar-actions"><Button variant="ghost" size="icon" aria-label="Open ZombieBuddy GitHub repository" onClick={() => void openUrl('https://github.com/ipatavatsizz/zbinstaller/').catch(error => updateStatus(String(error)))}><GithubMark /></Button><ThemeController /></div></header>
-    <div className="intro"><div><span className="section-label">INSTALLER</span><h2>Choose your build</h2><p>Keep your ZombieBuddy version up to date.</p></div></div>
+    <header className="topbar"><div className="brand"><img src={logo} alt="" /><div><span className="eyebrow">PROJECT ZOMBOID</span><h1>ZombieBuddy <span>Installer</span></h1></div></div><div className="topbar-actions"><Button variant="ghost" size="icon" aria-label="Open ZombieBuddy GitHub repository" onClick={() => void api.openProjectPage('installer').catch(error => reportStatus(String(error)))}><GithubMark /></Button><ThemeController /></div></header>
+    <div className="intro"><div><span className="section-label">INSTALLER</span><h2>Choose your build</h2><p>Keep your ZombieBuddy version up to date.</p></div><Button variant="ghost" size="sm" onClick={diagnostics}>Diagnostics (F5)</Button></div>
     <div className="branch-grid">
-      <BranchCard branch="lts" label="Stable release" description="Reliable and recommended" installed={installed('lts')} hasInstalled={!!data?.files.some(file => file.name === 'zbNative.dll' && file.exists)} onRefresh={refresh} onUninstall={() => void requestUninstall()} onStatus={message => { updateProgress(undefined); updateStatus(message); }} />
-      <BranchCard branch="beta" label="Beta release" description="Get the latest features" installed={installed('beta')} hasInstalled={!!data?.files.some(file => file.name === 'zbNative.dll' && file.exists)} onRefresh={refresh} onUninstall={() => void requestUninstall()} onStatus={message => { updateProgress(undefined); updateStatus(message); }} />
+      {(['lts', 'beta'] as const).map(branch => <BranchCard key={branch} branch={branch} label={branch === 'lts' ? 'Stable release' : 'Beta release'} description={branch === 'lts' ? 'Reliable and recommended' : 'Get the latest features'} installed={installed(branch)} hasInstalled={hasInstalled} busy={busy} waiting={activeBranch === branch && progress?.step === 1 && progress.message.includes('Waiting for Steam')} onInstall={() => install(branch)} onWorkshop={() => workshop(branch)} onUninstall={requestUninstall} onCancel={() => void api.cancelInstall().catch(error => reportStatus(String(error)))} />)}
     </div>
-    <section className="activity-panel" role="status" aria-live="polite"><div className="activity-heading"><span className={`status-dot ${status.toLowerCase().includes('error') || status.toLowerCase().includes('failed') ? 'status-error' : ''}`} />Activity</div><p>{progress ? `${progress.message} (${progress.step}%)` : status}</p>{progress && <div className="progress-track"><span style={{ width: `${Math.max(0, Math.min(100, progress.step))}%` }} /></div>}</section>
+    <footer><Button variant="ghost" size="sm" onClick={() => void api.openProjectPage('website').catch(error => reportStatus(String(error)))}>ipatavatsizz</Button><span>•</span><Button variant="ghost" size="sm" onClick={() => void api.openProjectPage('original').catch(error => reportStatus(String(error)))}>zed-0xff</Button></footer>
+    <section className="activity-panel" role="status" aria-live="polite"><div className="activity-heading"><span className={`status-dot ${status.toLowerCase().includes('error') || status.toLowerCase().includes('failed') ? 'status-error' : ''}`} />Activity</div><p>{progress ? `${progress.message} (${percentage}%)` : status}</p>{progress && <div className="progress-track" role="progressbar" aria-label="Installation progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><span style={{ width: `${percentage}%` }} /></div>}</section>
   </main>;
 }
 

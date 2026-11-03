@@ -5,6 +5,7 @@ const api = vi.hoisted(() => ({
   diagnosticState: vi.fn(),
   diagnosticAction: vi.fn(),
   clearDiagnosticLog: vi.fn(),
+  closeWindow: vi.fn(),
 }));
 vi.mock('../../src/api', () => api);
 
@@ -44,6 +45,7 @@ describe('diagnostics window UI contract', () => {
     api.diagnosticState.mockReset().mockResolvedValue({ status: 'Idle', message: 'Ready', log: [] });
     api.diagnosticAction.mockReset().mockResolvedValue('Updated configuration');
     api.clearDiagnosticLog.mockReset().mockResolvedValue(undefined);
+    api.closeWindow.mockReset().mockResolvedValue(undefined);
   });
 
   it('renders Steam, game, branch, config and file diagnostics', async () => {
@@ -71,5 +73,14 @@ describe('diagnostics window UI contract', () => {
     await Promise.resolve();
     expect(api.clearDiagnosticLog).toHaveBeenCalledOnce();
     expect(document.querySelector('#log')?.textContent).toBe('');
+  });
+
+  it('shows missing-game diagnostics instead of hiding all Steam details', async () => {
+    const value = report();
+    value.discovery.gamePath = '';
+    api.diagnosticReport.mockResolvedValue(value);
+    await loadDiagnostics();
+    expect(document.querySelector('#summary')?.textContent).toContain('Project Zomboid: (not detected)');
+    expect(document.querySelector('#libraries')?.textContent).toContain('D:/Library');
   });
 });

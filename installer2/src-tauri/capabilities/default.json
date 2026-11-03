@@ -3,5 +3,13 @@
   "identifier": "main-window",
   "description": "Only local installer commands and progress events.",
   "windows": ["main", "diagnostics"],
-  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "opener:allow-open-url", "opener:allow-default-urls"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    { "identifier": "opener:allow-open-url", "allow": [
+      { "url": "https://github.com/ipatavatsizz/zbinstaller/" },
+      { "url": "https://ipatavatsizz.github.io/zbinstaller" },
+      { "url": "https://github.com/zed-0xff/ZombieBuddy" }
+    ] }
+  ]
 }

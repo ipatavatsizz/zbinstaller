@@ -2,6 +2,7 @@
 name = "installer2"
 version = "26.11.3"
 edition = "2024"
+rust-version = "1.89"
 authors = ["ipatavatsizz"]
 
 [build-dependencies]
@@ -12,3 +13,6 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 installer-core = { path = "../crates/installer-core" }
+
+[dev-dependencies]
+tempfile = "3"
