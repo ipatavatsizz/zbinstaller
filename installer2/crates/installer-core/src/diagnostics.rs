@@ -1,10 +1,11 @@
 use crate::{
+    InstallationLock, TargetPlatform,
     discovery::{self, Discovery},
-    patch, platform, transaction,
+    install, patch, platform, target, transaction,
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::Path};
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -23,71 +24,57 @@ pub struct DiagnosticReport {
 
 pub fn diagnostic_report() -> Result<DiagnosticReport> {
     Ok(DiagnosticReport {
-        discovery: discovery::discover()?,
+        discovery: discovery::inspect(),
         steam_running: platform::steam_running(),
     })
 }
 
 pub fn run_diagnostic_action(action: DiagnosticAction) -> Result<String> {
-    let discovery = discovery::discover()?;
-    run_diagnostic_action_at(action, &discovery.game_path, &discovery.config_paths)
+    let root = platform::steam_root()?;
+    let _lock = InstallationLock::acquire(&root)?;
+    let discovery = discovery::discover_from_for(root, TargetPlatform::current())?;
+    install::with_stopped_steam(&discovery, |discovery| {
+        run_diagnostic_action_at(action, &discovery.game_path, &discovery.config_paths)
+    })
 }
 
-/// Run one diagnostics patch against explicit targets, without consulting host Steam paths.
+/// Explicit fixture paths; the native entry point also checks the game and closes/restarts Steam.
 pub fn run_diagnostic_action_at(
     action: DiagnosticAction,
-    game_path: &Path,
-    config_paths: &[std::path::PathBuf],
+    game: &Path,
+    configs: &[PathBuf],
 ) -> Result<String> {
-    match action {
-        DiagnosticAction::Steam => patch_steam(config_paths),
-        DiagnosticAction::Json => patch_one(
-            &game_path.join("ProjectZomboid64.json"),
-            patch::launcher_json,
-        ),
-        DiagnosticAction::Launcher => {
-            patch_one(&game_path.join("ProjectZomboid64.bat"), patch::launcher_bat)
+    run_diagnostic_action_for(action, game, configs, TargetPlatform::current())
+}
+
+pub fn run_diagnostic_action_for(
+    action: DiagnosticAction,
+    game: &Path,
+    configs: &[PathBuf],
+    target: TargetPlatform,
+) -> Result<String> {
+    let _lock = InstallationLock::acquire(game)?;
+    install::recover_for(game, configs, target)?;
+    let mut changes = Vec::new();
+    let message = match action {
+        DiagnosticAction::Steam => {
+            let count = install::add_steam_patches(&mut changes, configs, target)?;
+            format!("Updated launch options in {count} Steam configuration(s).")
         }
-    }
-}
-
-fn patch_one(path: &Path, transform: fn(&[u8]) -> Result<Vec<u8>>) -> Result<String> {
-    let input = fs::read(path).with_context(|| format!("Could not read {}", path.display()))?;
-    let output = transform(&input)?;
-    backup_once(path, &input)?;
-    transaction::atomic_write(path, &output)?;
-    Ok(format!("Updated {}", path.display()))
-}
-
-fn patch_steam(config_paths: &[std::path::PathBuf]) -> Result<String> {
-    let mut patched = 0;
-    for path in config_paths {
-        let input = fs::read(path).with_context(|| format!("Could not read {}", path.display()))?;
-        let Some(output) = patch::steam_config(&input)? else {
-            continue;
-        };
-        backup_once(path, &input)?;
-        transaction::atomic_write(path, &output)?;
-        patched += 1;
-    }
-    ensure!(
-        patched > 0,
-        "Project Zomboid app 108600 was not found in Steam user configurations"
-    );
-    Ok(format!(
-        "Updated launch options in {patched} Steam configuration(s)"
-    ))
-}
-
-fn backup_once(path: &Path, original: &[u8]) -> Result<()> {
-    let backup = path.with_extension(format!(
-        "{}.backup",
-        path.extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or_default()
-    ));
-    if !backup.exists() {
-        transaction::atomic_write(&backup, original)?;
-    }
-    Ok(())
+        DiagnosticAction::Json => {
+            install::add_patch(&mut changes, target::launcher_json_path(game)?, |input| {
+                patch::launcher_json_for(input, target)
+            })?;
+            "Updated Project Zomboid JSON launcher.".into()
+        }
+        DiagnosticAction::Launcher => {
+            install::add_patch(&mut changes, target.launcher(game), |input| match target {
+                TargetPlatform::Windows => patch::launcher_bat(input),
+                _ => patch::launcher_shell(input, target),
+            })?;
+            "Updated Project Zomboid alternate launcher.".into()
+        }
+    };
+    transaction::apply_at(game, &changes, transaction::atomic_write)?;
+    Ok(message)
 }

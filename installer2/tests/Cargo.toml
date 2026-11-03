@@ -19,3 +19,7 @@ path = "tests/unit/patch_fixtures.rs"
 [[test]]
 name = "integration-installation"
 path = "tests/integration/installation_fixtures.rs"
+
+[[test]]
+name = "platform-parity"
+path = "tests/integration/platform_parity.rs"

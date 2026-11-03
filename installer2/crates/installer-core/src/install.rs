@@ -1,5 +1,7 @@
 use crate::{
-    Branch, discovery, patch, platform,
+    Branch, InstallationLock, TargetPlatform,
+    discovery::{self, Discovery},
+    patch, platform, target,
     transaction::{self, Change},
 };
 use anyhow::{Context, Result, ensure};
@@ -8,7 +10,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 #[derive(Clone, Serialize)]
@@ -33,94 +35,103 @@ pub fn install_with_cancel(
         })
     };
     progress(1, "Locating Steam, Project Zomboid and Workshop files...");
-    let environment = discovery::discover()?;
+    platform::ensure_supported()?;
+    let root = platform::steam_root()?;
+    let _lock = InstallationLock::acquire(&root)?;
+    let target = TargetPlatform::current();
+    let mut environment = discovery::discover_from_for(&root, target)?;
     platform::ensure_game_closed()?;
-    let workshop = loop {
-        ensure!(!is_cancelled(), "Installation cancelled");
-        let path = discovery::workshop_path(&environment.libraries, branch);
-        if let Some(path) = path.as_ref()
-            && discovery::workshop_item_installed(&environment.libraries, branch)
-            && discovery::workshop_ready(path)
-        {
-            break path.clone();
-        }
-        progress(
-            1,
-            &format!(
-                "Waiting for Steam to finish downloading the {} Workshop build…",
-                if matches!(branch, Branch::Lts) {
-                    "LTS"
-                } else {
-                    "Beta"
-                }
-            ),
-        );
-        thread::sleep(Duration::from_secs(2));
-    };
+    ensure!(
+        discovery::workshop_path(&environment.libraries, branch).is_some(),
+        "Selected Workshop branch is not subscribed; open its Workshop page first"
+    );
+    let workshop = wait_for_workshop(
+        Duration::from_secs(60),
+        Duration::from_millis(500),
+        is_cancelled,
+        || {
+            // Steam can add a library or finish a subscription while the installer waits.
+            environment = discovery::discover_from_for(&root, target)?;
+            let ready = discovery::ready_workshop_path(&environment.libraries, branch, target);
+            if ready.is_none() {
+                progress(
+                    1,
+                    "Waiting for Steam to finish downloading the Workshop build…",
+                );
+            }
+            Ok(ready)
+        },
+    )?;
     progress(2, "Closing Steam before reading its configuration...");
-    platform::stop_steam(&environment.steam_path)?;
-    let result = (|| {
-        platform::ensure_game_closed()?;
-        // Re-read configuration only after Steam has flushed its final writes.
-        let changes =
-            prepare_changes(&environment.game_path, &environment.config_paths, &workshop)?;
-        let mut step = 2;
-        transaction::apply(&changes, |path, bytes| {
-            step += 1;
+    with_stopped_steam(&environment, |environment| {
+        let _game_lock = InstallationLock::acquire(&environment.game_path)?;
+        recover_for(&environment.game_path, &environment.config_paths, target)?;
+        let changes = prepare_changes(
+            &environment.game_path,
+            &environment.config_paths,
+            &workshop,
+            target,
+        )?;
+        let total = changes.len().max(1);
+        let mut completed = 0;
+        transaction::apply_at(&environment.game_path, &changes, |path, bytes| {
+            transaction::atomic_write(path, bytes)?;
+            completed += 1;
             progress(
-                step.min(7),
+                (2 + completed * 5 / total) as u8,
                 &format!(
                     "Updating {}",
                     path.file_name().unwrap_or_default().to_string_lossy()
                 ),
             );
-            transaction::atomic_write(path, bytes)
-        })
-    })();
-    if let Err(error) = result {
-        // Rollback has completed before Steam can reopen the configuration.
-        let restart = platform::start_steam(&environment.steam_path);
-        return match restart {
-            Ok(()) => Err(error),
-            Err(restart) => {
-                Err(error).context(format!("Steam also failed to restart: {restart:#}"))
-            }
-        };
-    }
-    progress(8, "Installation completed. Starting Steam...");
-    // Restart is outside the file transaction: a launch failure must not undo a valid install.
-    match platform::start_steam(&environment.steam_path) {
-        Ok(()) => Ok("Installation completed successfully. Steam is starting.".into()),
-        Err(error) => Ok(format!(
-            "Installation completed. Start Steam manually: {error:#}"
-        )),
+            Ok(())
+        })?;
+        progress(8, "Installation completed. Starting Steam...");
+        Ok("Installation completed successfully.".into())
+    })
+}
+
+fn wait_for_workshop(
+    timeout: Duration,
+    interval: Duration,
+    is_cancelled: impl Fn() -> bool,
+    mut poll: impl FnMut() -> Result<Option<PathBuf>>,
+) -> Result<PathBuf> {
+    let start = Instant::now();
+    loop {
+        ensure!(!is_cancelled(), "Installation cancelled");
+        if let Some(path) = poll()? {
+            return Ok(path);
+        }
+        ensure!(
+            start.elapsed() < timeout,
+            "Workshop item did not finish downloading within {} seconds; retry after Steam finishes",
+            timeout.as_secs()
+        );
+        thread::sleep(interval.min(timeout.saturating_sub(start.elapsed())));
     }
 }
 
-/// Prepare and transactionally apply installation changes using explicit, isolated paths.
-/// The caller is responsible for closing the game and Steam first.
-pub fn install_from_paths(
-    game_path: &Path,
-    config_paths: &[PathBuf],
-    workshop: &Path,
-) -> Result<()> {
-    let changes = prepare_changes(game_path, config_paths, workshop)?;
-    transaction::apply(&changes, transaction::atomic_write)
-}
-
-pub fn uninstall() -> Result<String> {
-    let environment = discovery::discover()?;
+/// All native mutations share shutdown, game check, post-shutdown rediscovery and restart handling.
+pub(crate) fn with_stopped_steam(
+    environment: &Discovery,
+    action: impl FnOnce(&Discovery) -> Result<String>,
+) -> Result<String> {
     platform::ensure_game_closed()?;
     platform::stop_steam(&environment.steam_path)?;
-    let result = uninstall_from_paths(&environment.game_path, &environment.config_paths);
+    let result = (|| {
+        platform::ensure_game_closed()?;
+        let refreshed =
+            discovery::discover_from_for(&environment.steam_path, environment.platform)?;
+        action(&refreshed)
+    })();
+    if result.is_err() && environment.game_path.join(transaction::JOURNAL).exists() {
+        return result.context("Steam was left closed because recovery is incomplete; retry the installer before starting Steam");
+    }
     let restart = platform::start_steam(&environment.steam_path);
     match (result, restart) {
-        (Ok(()), Ok(())) => {
-            Ok("ZombieBuddy was uninstalled successfully. Steam is starting.".into())
-        }
-        (Ok(()), Err(error)) => Ok(format!(
-            "ZombieBuddy was uninstalled. Start Steam manually: {error:#}"
-        )),
+        (Ok(message), Ok(())) => Ok(format!("{message} Steam is starting.")),
+        (Ok(message), Err(error)) => Ok(format!("{message} Start Steam manually: {error:#}")),
         (Err(error), Ok(())) => Err(error),
         (Err(error), Err(restart)) => {
             Err(error.context(format!("Steam also failed to restart: {restart:#}")))
@@ -128,18 +139,62 @@ pub fn uninstall() -> Result<String> {
     }
 }
 
-pub fn uninstall_from_paths(game_path: &Path, config_paths: &[PathBuf]) -> Result<()> {
+pub fn install_from_paths(game: &Path, configs: &[PathBuf], workshop: &Path) -> Result<()> {
+    install_from_paths_for(game, configs, workshop, TargetPlatform::current())
+}
+
+/// Explicit, isolated targets for fixture tests. Caller closes Steam/the game for real installations.
+pub fn install_from_paths_for(
+    game: &Path,
+    configs: &[PathBuf],
+    workshop: &Path,
+    target: TargetPlatform,
+) -> Result<()> {
+    let _lock = InstallationLock::acquire(game)?;
+    recover_for(game, configs, target)?;
+    let changes = prepare_changes(game, configs, workshop, target)?;
+    transaction::apply_at(game, &changes, transaction::atomic_write)
+}
+
+pub fn uninstall() -> Result<String> {
+    let root = platform::steam_root()?;
+    let _lock = InstallationLock::acquire(&root)?;
+    let environment = discovery::discover_from_for(root, TargetPlatform::current())?;
+    with_stopped_steam(&environment, |environment| {
+        uninstall_from_paths(&environment.game_path, &environment.config_paths)?;
+        Ok("ZombieBuddy was uninstalled successfully.".into())
+    })
+}
+
+pub fn uninstall_from_paths(game: &Path, configs: &[PathBuf]) -> Result<()> {
+    uninstall_from_paths_for(game, configs, TargetPlatform::current())
+}
+
+pub fn uninstall_from_paths_for(
+    game: &Path,
+    configs: &[PathBuf],
+    target: TargetPlatform,
+) -> Result<()> {
+    let _lock = InstallationLock::acquire(game)?;
+    recover_for(game, configs, target)?;
     let mut changes = Vec::new();
-    for name in ["ProjectZomboid64.json", "ProjectZomboid64.bat"] {
-        let path = game_path.join(name);
-        if !path.is_file() {
-            continue;
-        }
+    if let Some(path) = target::find_launcher_json(game)? {
         let input = fs::read(&path)?;
-        let bytes = if name.ends_with(".json") {
-            patch::uninstall_launcher_json(&input)?
-        } else {
-            patch::uninstall_launcher_bat(&input)?
+        let bytes = patch::uninstall_launcher_json(&input, target)?;
+        if bytes != input {
+            changes.push(Change {
+                path,
+                bytes,
+                remove: false,
+            });
+        }
+    }
+    let path = target.launcher(game);
+    if path.is_file() {
+        let input = fs::read(&path)?;
+        let bytes = match target {
+            TargetPlatform::Windows => patch::uninstall_launcher_bat(&input)?,
+            _ => patch::uninstall_launcher_shell(&input, target)?,
         };
         if bytes != input {
             changes.push(Change {
@@ -149,9 +204,9 @@ pub fn uninstall_from_paths(game_path: &Path, config_paths: &[PathBuf]) -> Resul
             });
         }
     }
-    for path in config_paths {
+    for path in configs {
         let input = fs::read(path)?;
-        if let Some(bytes) = patch::uninstall_steam_config(&input)?
+        if let Some(bytes) = patch::uninstall_steam_config(&input, target)?
             && bytes != input
         {
             changes.push(Change {
@@ -161,8 +216,8 @@ pub fn uninstall_from_paths(game_path: &Path, config_paths: &[PathBuf]) -> Resul
             });
         }
     }
-    for name in ["zbNative.dll", "ZombieBuddy.jar"] {
-        let path = game_path.join(name);
+    for name in target.files() {
+        let path = game.join(name);
         if path.is_file() {
             changes.push(Change {
                 path,
@@ -175,37 +230,65 @@ pub fn uninstall_from_paths(game_path: &Path, config_paths: &[PathBuf]) -> Resul
         !changes.is_empty(),
         "No installed ZombieBuddy files or launch options were found"
     );
-    transaction::apply(&changes, transaction::atomic_write)
+    transaction::apply_at(game, &changes, transaction::atomic_write)
 }
 
-fn prepare_changes(
-    game_path: &Path,
-    config_paths: &[PathBuf],
-    workshop: &Path,
-) -> Result<Vec<Change>> {
-    let mut changes = Vec::new();
-    for name in ["zbNative.dll", "ZombieBuddy.jar"] {
-        let source = workshop.join("mods/ZombieBuddy/libs").join(name);
-        let bytes =
-            fs::read(&source).with_context(|| format!("Could not read {}", source.display()))?;
-        ensure!(!bytes.is_empty(), "Workshop file {name} is empty");
+pub(crate) fn recover_for(game: &Path, configs: &[PathBuf], target: TargetPlatform) -> Result<()> {
+    let mut allowed = vec![
+        target.launcher(game),
+        game.join(target.files()[0]),
+        game.join("ZombieBuddy.jar"),
+    ];
+    allowed.push(
+        target::find_launcher_json(game)?.unwrap_or_else(|| game.join("ProjectZomboid64.json")),
+    );
+    allowed.extend_from_slice(configs);
+    let backups: Vec<_> = allowed
+        .iter()
+        .map(|path| transaction::backup_path(path))
+        .collect();
+    allowed.extend(backups);
+    transaction::recover(game, &allowed)?;
+    Ok(())
+}
+
+pub(crate) fn add_patch(
+    changes: &mut Vec<Change>,
+    path: PathBuf,
+    transform: impl FnOnce(&[u8]) -> Result<Vec<u8>>,
+) -> Result<()> {
+    let input = fs::read(&path).with_context(|| format!("Could not read {}", path.display()))?;
+    let bytes = transform(&input).with_context(|| format!("Could not patch {}", path.display()))?;
+    transaction::preserve_original(changes, &path, &input)?;
+    if bytes != input {
         changes.push(Change {
-            path: game_path.join(name),
+            path,
             bytes,
             remove: false,
         });
     }
+    Ok(())
+}
+
+pub(crate) fn add_steam_patches(
+    changes: &mut Vec<Change>,
+    configs: &[PathBuf],
+    target: TargetPlatform,
+) -> Result<usize> {
     let mut patched = 0;
-    for path in config_paths {
+    for path in configs {
         let input = fs::read(path)?;
-        if let Some(bytes) = patch::steam_config(&input)
+        if let Some(bytes) = patch::steam_config_for(&input, target)
             .with_context(|| format!("Invalid Steam config: {}", path.display()))?
         {
-            changes.push(Change {
-                path: path.clone(),
-                bytes,
-                remove: false,
-            });
+            transaction::preserve_original(changes, path, &input)?;
+            if bytes != input {
+                changes.push(Change {
+                    path: path.clone(),
+                    bytes,
+                    remove: false,
+                });
+            }
             patched += 1;
         }
     }
@@ -213,49 +296,70 @@ fn prepare_changes(
         patched > 0,
         "Project Zomboid was not found in any Steam user configuration; launch the game from Steam once"
     );
-    let json = game_path.join("ProjectZomboid64.json");
-    changes.push(Change {
-        bytes: patch::launcher_json(
-            &fs::read(&json).context("Could not read ProjectZomboid64.json")?,
-        )?,
-        path: json,
-        remove: false,
-    });
-    let bat = game_path.join("ProjectZomboid64.bat");
-    changes.push(Change {
-        bytes: patch::launcher_bat(
-            &fs::read(&bat).context("Could not read ProjectZomboid64.bat")?,
-        )?,
-        path: bat,
-        remove: false,
-    });
+    Ok(patched)
+}
+
+fn prepare_changes(
+    game: &Path,
+    configs: &[PathBuf],
+    workshop: &Path,
+    target: TargetPlatform,
+) -> Result<Vec<Change>> {
+    let mut changes = Vec::new();
+    for name in target.files() {
+        let source = workshop.join("mods/ZombieBuddy/libs").join(name);
+        let bytes =
+            fs::read(&source).with_context(|| format!("Could not read {}", source.display()))?;
+        ensure!(!bytes.is_empty(), "Workshop file {name} is empty");
+        changes.push(Change {
+            path: game.join(name),
+            bytes,
+            remove: false,
+        });
+    }
+    add_steam_patches(&mut changes, configs, target)?;
+    add_patch(&mut changes, target::launcher_json_path(game)?, |input| {
+        patch::launcher_json_for(input, target)
+    })?;
+    add_patch(&mut changes, target.launcher(game), |input| match target {
+        TargetPlatform::Windows => patch::launcher_bat(input),
+        _ => patch::launcher_shell(input, target),
+    })?;
     Ok(changes)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn invalid_launcher_does_not_modify_any_installation_files() {
-        let root = tempfile::tempdir().unwrap();
-        let game = root.path().join("game");
-        let workshop = root.path().join("workshop");
-        fs::create_dir_all(&game).unwrap();
-        fs::create_dir_all(workshop.join("mods/ZombieBuddy/libs")).unwrap();
-        for name in ["zbNative.dll", "ZombieBuddy.jar"] {
-            fs::write(
-                workshop.join("mods/ZombieBuddy/libs").join(name),
-                b"payload",
+    fn download_wait_can_be_cancelled_and_times_out_without_platform_operations() {
+        assert!(
+            wait_for_workshop(
+                Duration::from_secs(1),
+                Duration::ZERO,
+                || true,
+                || panic!("cancel must precede poll")
             )
-            .unwrap();
-        }
-        let config = root.path().join("localconfig.vdf");
-        let original = br#""UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "108600" { "LaunchOptions" "" } } } } } }"#;
-        fs::write(&config, original).unwrap();
-        fs::write(game.join("ProjectZomboid64.json"), b"invalid json").unwrap();
-        assert!(prepare_changes(&game, std::slice::from_ref(&config), &workshop).is_err());
-        assert!(!game.join("zbNative.dll").exists());
-        assert_eq!(fs::read(config).unwrap(), original);
+            .unwrap_err()
+            .to_string()
+            .contains("cancelled")
+        );
+        assert!(
+            wait_for_workshop(Duration::ZERO, Duration::ZERO, || false, || Ok(None))
+                .unwrap_err()
+                .to_string()
+                .contains("did not finish")
+        );
+        let path = PathBuf::from("fixture");
+        assert_eq!(
+            wait_for_workshop(
+                Duration::ZERO,
+                Duration::ZERO,
+                || false,
+                || Ok(Some(path.clone()))
+            )
+            .unwrap(),
+            path
+        );
     }
 }

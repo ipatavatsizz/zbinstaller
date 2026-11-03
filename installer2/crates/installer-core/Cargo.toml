@@ -2,6 +2,7 @@
 name = "installer-core"
 version = "26.11.3"
 edition = "2024"
+rust-version = "1.89"
 
 [dependencies]
 anyhow = "1"

@@ -15,7 +15,10 @@ pub struct Entry {
 }
 
 pub fn parse(input: &str) -> Result<Vec<Entry>> {
-    let mut reader = Reader { input, offset: 0 };
+    let mut reader = Reader {
+        input,
+        offset: if input.starts_with('\u{feff}') { 3 } else { 0 },
+    };
     reader.object(false, 0)
 }
 
@@ -32,6 +35,25 @@ pub fn object_at<'a>(entries: &'a [Entry], path: &[&str]) -> Option<&'a [Entry]>
     }
 }
 
+pub fn unique_object_at<'a>(entries: &'a [Entry], path: &[&str]) -> Result<Option<&'a [Entry]>> {
+    if path.is_empty() {
+        return Ok(Some(entries));
+    }
+    let matching: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.key.eq_ignore_ascii_case(path[0]))
+        .collect();
+    ensure!(
+        matching.len() <= 1,
+        "Ambiguous Steam configuration object: {}",
+        path[0]
+    );
+    match matching.first().map(|entry| &entry.value) {
+        Some(Value::Object(children)) => unique_object_at(children, &path[1..]),
+        _ => Ok(None),
+    }
+}
+
 pub fn text_at<'a>(entries: &'a [Entry], key: &str) -> Option<&'a str> {
     entries.iter().find_map(|entry| match &entry.value {
         Value::Text(text, _) if entry.key.eq_ignore_ascii_case(key) => Some(text.as_str()),
@@ -45,7 +67,7 @@ struct Reader<'a> {
 }
 
 impl Reader<'_> {
-    fn whitespace(&mut self) {
+    fn whitespace(&mut self) -> Result<()> {
         loop {
             while self
                 .input
@@ -59,19 +81,39 @@ impl Reader<'_> {
                 self.offset += self.input[self.offset..]
                     .find('\n')
                     .unwrap_or(self.input.len() - self.offset);
+            } else if self.input[self.offset..].starts_with("/*") {
+                let length = self.input[self.offset + 2..]
+                    .find("*/")
+                    .ok_or_else(|| anyhow::anyhow!("Unclosed VDF comment"))?;
+                self.offset += length + 4;
             } else {
                 break;
             }
         }
+        Ok(())
     }
 
     fn string(&mut self) -> Result<(String, Range<usize>)> {
-        self.whitespace();
+        self.whitespace()?;
         let start = self.offset;
-        ensure!(
-            self.input.as_bytes().get(start) == Some(&b'"'),
-            "Expected quoted VDF string at byte {start}"
-        );
+        if self.input.as_bytes().get(start) != Some(&b'"') {
+            while let Some(byte) = self.input.as_bytes().get(self.offset) {
+                if byte.is_ascii_whitespace() || matches!(byte, b'{' | b'}') {
+                    break;
+                }
+                ensure!(
+                    !matches!(byte, b'[' | b']' | b'#' | b'"'),
+                    "Unsupported VDF directive or condition at byte {}",
+                    self.offset
+                );
+                self.offset += 1;
+            }
+            ensure!(self.offset > start, "Expected VDF token at byte {start}");
+            return Ok((
+                self.input[start..self.offset].to_owned(),
+                start..self.offset,
+            ));
+        }
         self.offset += 1;
         let mut value = String::new();
         while let Some(ch) = self.input[self.offset..].chars().next() {
@@ -87,6 +129,7 @@ impl Reader<'_> {
                     match next {
                         '\\' | '"' => value.push(next),
                         'n' => value.push('\n'),
+                        'r' => value.push('\r'),
                         't' => value.push('\t'),
                         _ => {
                             value.push('\\');
@@ -104,7 +147,7 @@ impl Reader<'_> {
         ensure!(depth < 64, "VDF nesting is too deep");
         let mut entries = Vec::new();
         loop {
-            self.whitespace();
+            self.whitespace()?;
             match self.input.as_bytes().get(self.offset) {
                 None => {
                     ensure!(!nested, "Unclosed VDF object");
@@ -118,7 +161,7 @@ impl Reader<'_> {
                 _ => {}
             }
             let (key, _) = self.string()?;
-            self.whitespace();
+            self.whitespace()?;
             let value = if self.input.as_bytes().get(self.offset) == Some(&b'{') {
                 self.offset += 1;
                 Value::Object(self.object(true, depth + 1)?)
@@ -138,6 +181,7 @@ pub fn quote(value: &str) -> String {
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
+            .replace('\r', "\\r")
             .replace('\t', "\\t")
     )
 }

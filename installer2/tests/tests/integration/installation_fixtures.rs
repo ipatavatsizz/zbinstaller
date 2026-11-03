@@ -1,6 +1,6 @@
 use installer_core::{
-    DiagnosticAction, discover_from, install_from_paths, run_diagnostic_action_at,
-    uninstall_from_paths,
+    DiagnosticAction, TargetPlatform, discover_from_for, install_from_paths_for,
+    run_diagnostic_action_for, uninstall_from_paths_for,
 };
 use installer2_tests::fixture;
 use std::{
@@ -42,7 +42,7 @@ fn installation_applies_all_fixture_patches_copies_payloads_and_is_idempotent() 
     let (game, config, workshop) = prepare_fixture_install(root.path());
     let config_paths = vec![config.clone()];
 
-    install_from_paths(&game, &config_paths, &workshop).unwrap();
+    install_from_paths_for(&game, &config_paths, &workshop, TargetPlatform::Windows).unwrap();
     let first_pass: Vec<_> = [
         config.clone(),
         game.join("ProjectZomboid64.json"),
@@ -63,7 +63,7 @@ fn installation_applies_all_fixture_patches_copies_payloads_and_is_idempotent() 
     assert_eq!(first_pass[3], b"dll-payload");
     assert_eq!(first_pass[4], b"jar-payload");
 
-    install_from_paths(&game, &config_paths, &workshop).unwrap();
+    install_from_paths_for(&game, &config_paths, &workshop, TargetPlatform::Windows).unwrap();
     let second_pass: Vec<_> = [
         config,
         game.join("ProjectZomboid64.json"),
@@ -85,7 +85,15 @@ fn invalid_launcher_fails_before_any_installation_file_is_modified() {
     let original_config = fs::read(&config).unwrap();
     fs::write(game.join("ProjectZomboid64.json"), b"not-json").unwrap();
 
-    assert!(install_from_paths(&game, std::slice::from_ref(&config), &workshop).is_err());
+    assert!(
+        install_from_paths_for(
+            &game,
+            std::slice::from_ref(&config),
+            &workshop,
+            TargetPlatform::Windows
+        )
+        .is_err()
+    );
     assert_eq!(fs::read(config).unwrap(), original_config);
     assert!(!game.join("zbNative.dll").exists());
     assert!(!game.join("ZombieBuddy.jar").exists());
@@ -98,9 +106,20 @@ fn uninstall_removes_payloads_and_only_the_managed_launch_flags() {
     let original_markers = String::from_utf8_lossy(&fs::read(&config).unwrap())
         .matches("-agentlib:zbNative --")
         .count();
-    install_from_paths(&game, std::slice::from_ref(&config), &workshop).unwrap();
+    install_from_paths_for(
+        &game,
+        std::slice::from_ref(&config),
+        &workshop,
+        TargetPlatform::Windows,
+    )
+    .unwrap();
 
-    uninstall_from_paths(&game, std::slice::from_ref(&config)).unwrap();
+    uninstall_from_paths_for(
+        &game,
+        std::slice::from_ref(&config),
+        TargetPlatform::Windows,
+    )
+    .unwrap();
 
     assert!(!game.join("zbNative.dll").exists());
     assert!(!game.join("ZombieBuddy.jar").exists());
@@ -113,12 +132,12 @@ fn uninstall_removes_payloads_and_only_the_managed_launch_flags() {
         "uninstall must restore the original flags and preserve unrelated Steam options"
     );
     assert!(
-        String::from_utf8_lossy(&fs::read(game.join("ProjectZomboid64.json")).unwrap())
-            .contains("-agentlib:zbNative\"")
+        !String::from_utf8_lossy(&fs::read(game.join("ProjectZomboid64.json")).unwrap())
+            .contains("-agentlib:zbNative")
     );
     assert!(
         !String::from_utf8_lossy(&fs::read(game.join("ProjectZomboid64.bat")).unwrap())
-            .contains("-agentlib:zbNative --")
+            .contains("-agentlib:zbNative")
     );
 }
 
@@ -138,7 +157,7 @@ fn diagnostics_patch_actions_create_first_backup_and_preserve_fixture_content() 
         DiagnosticAction::Json,
         DiagnosticAction::Launcher,
     ] {
-        run_diagnostic_action_at(action, &game, &config_paths).unwrap();
+        run_diagnostic_action_for(action, &game, &config_paths, TargetPlatform::Windows).unwrap();
     }
 
     assert_eq!(
@@ -155,8 +174,20 @@ fn diagnostics_patch_actions_create_first_backup_and_preserve_fixture_content() 
     );
     let patched_json = fs::read(&json).unwrap();
     let patched_batch = fs::read(&batch).unwrap();
-    run_diagnostic_action_at(DiagnosticAction::Json, &game, &config_paths).unwrap();
-    run_diagnostic_action_at(DiagnosticAction::Launcher, &game, &config_paths).unwrap();
+    run_diagnostic_action_for(
+        DiagnosticAction::Json,
+        &game,
+        &config_paths,
+        TargetPlatform::Windows,
+    )
+    .unwrap();
+    run_diagnostic_action_for(
+        DiagnosticAction::Launcher,
+        &game,
+        &config_paths,
+        TargetPlatform::Windows,
+    )
+    .unwrap();
     assert_eq!(fs::read(json).unwrap(), patched_json);
     assert_eq!(fs::read(batch).unwrap(), patched_batch);
     assert_eq!(
@@ -201,7 +232,7 @@ fn discovery_uses_library_manifest_workshop_and_fixture_files() {
     fs::create_dir_all(branch.join("mods/ZombieBuddy/java")).unwrap();
     fs::write(branch.join("mods/ZombieBuddy/java/VERSION"), "2.3.4\n").unwrap();
 
-    let found = discover_from(&steam).unwrap();
+    let found = discover_from_for(&steam, TargetPlatform::Windows).unwrap();
     assert_eq!(found.game_path, game);
     assert_eq!(found.libraries, vec![steam, library]);
     assert_eq!(found.config_paths.len(), 1);
