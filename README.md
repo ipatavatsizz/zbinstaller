@@ -32,7 +32,7 @@ The installer contains platform-specific support for:
 
 - Windows
 - Linux
-- macOS
+- macOS (Apple Silicon)
 
 Steam discovery includes common installation locations on each platform, including standard Linux, Flatpak, Snap, and macOS locations where applicable.
 
@@ -92,7 +92,7 @@ rake                Build for the current host and run tests
 rake build          Build for the current host
 rake build_windows  Build ZombieBuddyInstaller.exe
 rake build_linux    Build ZombieBuddyInstaller-linux-amd64
-rake build_macos    Build ZombieBuddyInstaller-macos-amd64
+rake build_macos    Build ZombieBuddyInstaller-macos-arm64
 rake build_all      Build Windows, Linux, and macOS artifacts
 rake test           Run go test ./...
 ```
@@ -101,9 +101,9 @@ The output binaries are written to the `installer` directory.
 
 ## Automated releases
 
-Pushing a version tag such as `v4.5` starts the GitHub Actions release workflow. It builds native Windows, Linux, and macOS artifacts on their respective GitHub-hosted runners and publishes them to one GitHub Release.
+Pushing a version tag such as `v4.5` starts the GitHub Actions release workflow. It builds native Windows amd64, Linux amd64, and macOS arm64 artifacts on the current GitHub-hosted `latest` runners and publishes them to one GitHub Release.
 
-Linux and macOS builds are experimental and may not work on every distribution or system. A local Linux or macOS machine is not required for the release build.
+Linux and macOS builds are experimental and may not work on every distribution or system. The macOS release targets Apple Silicon (arm64); Intel macOS is not included. A local Linux or macOS machine is not required for the release build.
 
 The workflow can also be started manually for an existing tag from the **Actions** tab. This is useful for tags created before the workflow was added.
 

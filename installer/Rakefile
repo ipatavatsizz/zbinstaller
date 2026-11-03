@@ -34,7 +34,7 @@ task :build_linux do
 end
 
 task :build_macos do
-  build_for("darwin", "amd64", "ZombieBuddyInstaller-macos-amd64")
+  build_for("darwin", "arm64", "ZombieBuddyInstaller-macos-arm64")
 end
 
 task :build_all do
