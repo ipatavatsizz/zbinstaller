@@ -101,15 +101,15 @@ func clearInstallLog() {
 }
 
 const (
-	VERSION  = "4.5"
-	PZ_APP   = "108600"
-	ZB_FLAGS = "-agentlib:zbNative"
+	VERSION = "4.5.1"
+	PZ_APP  = "108600"
 )
 
 var (
 	STEAM_PATH = GetSteamPath()
 	PZ_PATH    = findProjectZomboidPath(STEAM_PATH)
 	ZB_FILES   = platformZBFiles()
+	ZB_FLAGS   = platformZBFlags()
 )
 
 func existingDirectory(path string) bool {

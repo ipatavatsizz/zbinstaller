@@ -613,7 +613,7 @@
                     <div class="feature-icon" aria-hidden="true">↯</div>
                     <h3>Complete patching</h3>
                     <p>Updates Steam Launch Options, the normal JSON launcher and the alternate batch launcher with
-                        <code>-agentlib:zbNative</code>.
+                        the platform-specific ZombieBuddy Java argument.
                     </p>
                 </article>
                 <article class="feature">
@@ -745,10 +745,12 @@
                     .then((ref) => {
                         const commit = ref.object?.sha?.slice(0, 7) || "unknown";
                         const size = `${(asset.size / 1024 / 1024).toFixed(1)} MB`;
+                        downloadLink.href = asset.browser_download_url || release.html_url;
                         downloadMeta.textContent = `${version} · ${commit} · ${platformName} · ${size}`;
                     });
             })
             .catch((error) => {
+                downloadLink.href = "https://github.com/ipatavatsizz/zbinstaller/releases/latest";
                 setDownloadLabel("latest");
                 downloadMeta.textContent = "Release details are currently unavailable.";
                 console.warn("Could not load release metadata:", error);

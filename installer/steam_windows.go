@@ -200,3 +200,7 @@ func openSteamWorkshopPage(branch Branch) error {
 func platformZBFiles() []string {
 	return []string{"zbNative.dll", "ZombieBuddy.jar"}
 }
+
+func platformZBFlags() string {
+	return "-agentlib:zbNative --"
+}

@@ -177,3 +177,7 @@ func platformZBFiles() []string {
 	}
 	return []string{"libzbNative.so", "ZombieBuddy.jar"}
 }
+
+func platformZBFlags() string {
+	return "-javaagent:ZombieBuddy.jar --"
+}
