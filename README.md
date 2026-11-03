@@ -54,6 +54,8 @@ Before installing, close Project Zomboid and any other process that may be using
 
 ## Building from source
 
+The new Tauri + Rust implementation is in [`installer2/`](./installer2). See its [development guide](./installer2/README.md) and [migration checklist](./installer2/docs/MIGRATION.md). The initial Rust port targets Windows; the Go implementation below remains available.
+
 The Go module is located in [`installer/`](./installer).
 
 Requirements:

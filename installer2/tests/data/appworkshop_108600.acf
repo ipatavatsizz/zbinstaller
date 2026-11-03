@@ -1,0 +1,20 @@
+"AppWorkshop"
+{
+	"appid" "108600"
+	"NeedsUpdate" "0"
+	"WorkshopItemsInstalled"
+	{
+		"3619862853"
+		{
+			"size" "13254999"
+			"timeupdated" "1791033976"
+			"manifest" "4305125393151977167"
+		}
+		"3812624292"
+		{
+			"size" "12000000"
+			"timeupdated" "1791033976"
+			"manifest" "1905125393151977167"
+		}
+	}
+}

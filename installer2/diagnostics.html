@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZombieBuddy Installer Diagnostics</title>
+  </head>
+  <body class="diagnostics-page">
+    <main class="diagnostics">
+      <section><p id="summary" class="summary">Loading diagnostics…</p></section>
+      <section><h2>Steam configs</h2><pre id="configs">Loading…</pre></section>
+      <section><h2>Steam libraries</h2><pre id="libraries">Loading…</pre></section>
+      <section><h2>Launcher files</h2><pre id="files">Loading…</pre></section>
+      <pre id="log" class="log" aria-live="polite"></pre>
+      <div class="diagnostic-actions">
+        <button id="refresh">Refresh Diagnostics</button>
+        <button id="patch-steam">Patch Steam Launch Options</button>
+        <button id="patch-json">Patch PZ JSON</button>
+        <button id="patch-launcher">Patch PZ Launcher</button>
+        <button id="clear-log">Clear Log</button>
+      </div>
+    </main>
+    <script type="module" src="/src/diagnostics.ts"></script>
+  </body>
+</html>
