@@ -10,16 +10,35 @@
     <title>ZombieBuddy Installer</title>
     <style>
         :root {
-            --bg: #101713;
-            --surface: #17231c;
-            --surface-raised: #1d2c23;
-            --border: #2b4033;
-            --text: #edf5ef;
-            --muted: #a7b9ac;
-            --accent: #9ee493;
-            --accent-strong: #75d66d;
-            --accent-ink: #122016;
-            --warning: #f2c879;
+            color-scheme: dark;
+            --bg: #24253a;
+            --surface: rgba(48, 48, 72, .84);
+            --surface-raised: #343550;
+            --border: #5b5c7d;
+            --text: #f5f1f5;
+            --muted: #c3bfd0;
+            --accent: #c6b8e9;
+            --accent-strong: #b19fda;
+            --accent-ink: #302943;
+            --warning: #f0c9a5;
+            --hero-glow: #4a466c;
+            --button-hover: #414263;
+        }
+
+        [data-theme="light"] {
+            color-scheme: light;
+            --bg: #f1f6f1;
+            --surface: rgba(244, 250, 245, .9);
+            --surface-raised: #e5f0e7;
+            --border: #c9ddcd;
+            --text: #35443a;
+            --muted: #6f7f73;
+            --accent: #b7cfc2;
+            --accent-strong: #9fbdaf;
+            --accent-ink: #30443b;
+            --warning: #c99f72;
+            --hero-glow: #dceee0;
+            --button-hover: #d8eadd;
         }
 
         * {
@@ -31,22 +50,60 @@
         body {
             min-height: 100vh;
             padding: 32px 16px;
+            overflow-x: hidden;
             color: var(--text);
             background:
-                radial-gradient(circle at 50% -10%, #294b34 0, transparent 42%),
+                radial-gradient(circle at 50% -10%, var(--hero-glow) 0, transparent 42%),
                 var(--bg);
             font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             line-height: 1.5;
+            transition: color .3s ease, background .3s ease;
+        }
+
+        body::before {
+            position: fixed;
+            z-index: -1;
+            inset: 0;
+            background: linear-gradient(120deg, transparent 25%, rgba(255, 255, 255, .04), transparent 75%);
+            content: "";
+            pointer-events: none;
+            animation: shimmer 12s ease-in-out infinite;
+        }
+
+        .bubbles {
+            position: fixed;
+            z-index: 0;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .bubble {
+            position: absolute;
+            top: -80px;
+            left: var(--left);
+            width: var(--size);
+            height: var(--size);
+            border: 2px solid color-mix(in srgb, var(--accent) 78%, transparent);
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--accent) 30%, transparent);
+            box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent),
+                inset 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+            opacity: 0;
+            animation: bubble-fall var(--duration) linear var(--delay) infinite;
         }
 
         .container {
             width: min(100%, 960px);
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
         .hero {
             padding: 44px 24px 36px;
             text-align: center;
+            animation: rise-in .7s ease both;
         }
 
         .hero-logo {
@@ -58,6 +115,7 @@
             border-radius: 28px;
             box-shadow: 0 16px 42px rgba(0, 0, 0, .28), 0 0 32px rgba(117, 214, 109, .12);
             object-fit: cover;
+            animation: float 5s ease-in-out infinite;
         }
 
         .eyebrow {
@@ -121,6 +179,70 @@
             transition: transform .15s ease, border-color .15s ease, background .15s ease;
         }
 
+        .theme-toggle {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 2;
+            min-height: 40px;
+            padding: 0 14px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--text);
+            background: var(--surface);
+            cursor: pointer;
+            font: inherit;
+            transition: border-color .2s ease, background .3s ease, transform .2s ease;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .theme-icon {
+            position: relative;
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 7px;
+            vertical-align: -4px;
+        }
+
+        .theme-icon::before,
+        .theme-icon::after {
+            position: absolute;
+            content: "";
+            transition: opacity .3s ease, transform .4s ease;
+        }
+
+        .theme-icon::before {
+            inset: 3px;
+            border-radius: 50%;
+            background: var(--warning);
+            box-shadow: 0 0 0 3px rgba(240, 201, 165, .16);
+        }
+
+        .theme-icon::after {
+            top: 0;
+            right: -1px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--surface);
+            transform: translate(5px, -2px) scale(.8);
+        }
+
+        [data-theme="light"] .theme-icon::before {
+            box-shadow: 0 0 0 3px rgba(215, 169, 130, .16);
+            transform: rotate(180deg);
+        }
+
+        [data-theme="light"] .theme-icon::after {
+            opacity: 0;
+            transform: translate(0, 0) scale(.35);
+        }
+
         .button:hover {
             border-color: var(--accent);
             transform: translateY(-2px);
@@ -143,12 +265,40 @@
             fill: currentColor;
         }
 
+        #download-link {
+            display: inline-grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto auto;
+            column-gap: 9px;
+            row-gap: 1px;
+            justify-items: start;
+            padding: 9px 16px 8px;
+        }
+
+        #download-link svg {
+            grid-row: 1 / span 2;
+            align-self: center;
+            margin-right: 0;
+        }
+
+        .download-meta {
+            display: block;
+            color: var(--accent-ink);
+            font-size: .66rem;
+            font-weight: 500;
+            line-height: 1.25;
+            opacity: .7;
+            white-space: nowrap;
+        }
+
         .section {
             margin-top: 24px;
             padding: 28px;
             border: 1px solid var(--border);
             border-radius: 18px;
-            background: rgba(23, 35, 28, .82);
+            background: var(--surface);
+            animation: rise-in .7s ease both;
+            animation-delay: .12s;
         }
 
         .section-heading {
@@ -303,50 +453,58 @@
             font-size: .85rem;
         }
 
-        .github-links {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-            margin-bottom: 18px;
-            text-align: left;
+        footer {
+            animation: rise-in .7s ease both;
+            animation-delay: .25s;
         }
 
-        .github-link {
-            display: flex;
-            align-items: center;
-            gap: 13px;
-            padding: 16px 18px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            color: var(--text);
-            background: var(--surface-raised);
-            text-decoration: none;
-            transition: border-color .15s ease, transform .15s ease, background .15s ease;
+        @keyframes rise-in {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .github-link:hover {
-            border-color: var(--accent);
-            background: #24372b;
-            transform: translateY(-2px);
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
         }
 
-        .github-link svg {
-            width: 28px;
-            height: 28px;
-            flex: 0 0 auto;
-            fill: var(--accent);
+        @keyframes shimmer {
+            0%, 100% { opacity: .35; transform: translateX(-8%); }
+            50% { opacity: .7; transform: translateX(8%); }
         }
 
-        .github-link strong {
-            display: block;
-            margin-bottom: 2px;
-            color: var(--text);
-            font-size: .95rem;
+        @keyframes bubble-fall {
+            0% {
+                opacity: 0;
+                transform: translate3d(0, -10vh, 0) scale(.7);
+            }
+            12% {
+                opacity: .82;
+            }
+            50% {
+                opacity: .68;
+                transform: translate3d(var(--drift), 50vh, 0) scale(1);
+            }
+            88% {
+                opacity: .62;
+            }
+            100% {
+                opacity: .0;
+                transform: translate3d(calc(var(--drift) * -1), 115vh, 0) scale(1.15);
+            }
         }
 
-        .github-link span {
-            color: var(--muted);
-            font-size: .78rem;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
+            }
+
+            .bubbles {
+                display: none;
+            }
         }
 
         .footer-note {
@@ -384,14 +542,34 @@
                 grid-template-columns: 1fr;
             }
 
-            .github-links {
-                grid-template-columns: 1fr;
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
             }
         }
     </style>
 </head>
 
 <body>
+    <button class="theme-toggle" type="button" title="Switch theme" aria-label="Switch to light theme"
+        aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true"></span>
+    </button>
+    <div class="bubbles" aria-hidden="true">
+        <span class="bubble" style="--left: 7%; --size: 34px; --duration: 17s; --delay: -8s; --drift: 28px;"></span>
+        <span class="bubble" style="--left: 19%; --size: 16px; --duration: 13s; --delay: -3s; --drift: -22px;"></span>
+        <span class="bubble" style="--left: 32%; --size: 46px; --duration: 21s; --delay: -15s; --drift: 34px;"></span>
+        <span class="bubble" style="--left: 48%; --size: 22px; --duration: 15s; --delay: -6s; --drift: -30px;"></span>
+        <span class="bubble" style="--left: 63%; --size: 58px; --duration: 24s; --delay: -19s; --drift: 24px;"></span>
+        <span class="bubble" style="--left: 78%; --size: 27px; --duration: 16s; --delay: -10s; --drift: -26px;"></span>
+        <span class="bubble" style="--left: 91%; --size: 40px; --duration: 19s; --delay: -2s; --drift: 20px;"></span>
+        <span class="bubble" style="--left: 13%; --size: 24px; --duration: 14s; --delay: -11s; --drift: 18px;"></span>
+        <span class="bubble" style="--left: 26%; --size: 62px; --duration: 26s; --delay: -22s; --drift: -32px;"></span>
+        <span class="bubble" style="--left: 41%; --size: 14px; --duration: 11s; --delay: -5s; --drift: 26px;"></span>
+        <span class="bubble" style="--left: 56%; --size: 36px; --duration: 18s; --delay: -13s; --drift: -20px;"></span>
+        <span class="bubble" style="--left: 71%; --size: 19px; --duration: 12s; --delay: -7s; --drift: 30px;"></span>
+        <span class="bubble" style="--left: 85%; --size: 52px; --duration: 23s; --delay: -17s; --drift: -24px;"></span>
+    </div>
     <main class="container">
         <header class="hero">
             <img class="hero-logo" src="installer/icon.png" alt="ZombieBuddy Installer logo">
@@ -400,14 +578,22 @@
             <p><strong>ZombieBuddy Installer</strong> finds your Steam installation, installs the selected Workshop
                 branch and configures every launcher entry required by ZombieBuddy.</p>
             <div class="actions">
-                <a class="button button-primary" href="https://github.com/ipatavatsizz/zbinstaller/releases/latest">
+                <a id="download-link" class="button button-primary"
+                    href="https://github.com/ipatavatsizz/zbinstaller/releases/latest">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                         <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
                     </svg>
-                    Download installer
+                    <span id="download-label">Download installer</span>
+                    <span id="download-meta" class="download-meta" aria-live="polite">Loading release details...</span>
                 </a>
                 <a class="button" href="https://github.com/ipatavatsizz/zbinstaller" target="_blank"
-                    rel="noreferrer">View source</a>
+                    rel="noreferrer">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                            d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.1c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.25 3.32.96.1-.74.4-1.25.73-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.77.11 3.06.73.81 1.18 1.84 1.18 3.1 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.08.78 2.18v3.23c0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
+                    </svg>
+                    View on GitHub
+                </a>
             </div>
         </header>
 
@@ -501,25 +687,86 @@
                     <p>Shows each step’s status and confirms when ZombieBuddy is ready.</p>
                 </article>
             </div>
-            <div class="note"><strong>Before you start:</strong> close Project Zomboid and subscribe to the desired
-                ZombieBuddy Workshop branch. The installer will close Steam temporarily while updating its launch
-                configuration.</div>
         </section>
 
         <footer>
-            <div class="github-links">
-                <a class="github-link" href="https://github.com/ipatavatsizz/zbinstaller" target="_blank"
-                    rel="noreferrer">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                            d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.1c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.75 1.18 1.75 1.18 1.02 1.75 2.67 1.25 3.32.96.1-.74.4-1.25.73-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.47.11-3.06 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.77.11 3.06.73.81 1.18 1.84 1.18 3.1 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.08.78 2.18v3.23c0 .3.21.66.79.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
-                    </svg>
-                    <span><strong>Installer source</strong>github.com/ipatavatsizz/zbinstaller</span>
-                </a>
-            </div>
-            <div class="footer-note">Made by ipatavatsizz</div>
+            <div class="footer-note">Made by <a href="https://github.com/ipatavatsizz" target="_blank"
+                rel="noreferrer">ipatavatsizz</a></div>
         </footer>
     </main>
+    <script>
+        const downloadLink = document.querySelector("#download-link");
+        const downloadLabel = document.querySelector("#download-label");
+        const downloadMeta = document.querySelector("#download-meta");
+        const themeToggle = document.querySelector(".theme-toggle");
+        const systemTheme = window.matchMedia("(prefers-color-scheme: light)");
+        const initialTheme = systemTheme.matches ? "light" : "dark";
+        const platform = (navigator.userAgentData?.platform || navigator.platform || navigator.userAgent).toLowerCase();
+        const latestReleaseUrl = "https://api.github.com/repos/ipatavatsizz/zbinstaller/releases/latest";
+        const releaseBase = "https://github.com/ipatavatsizz/zbinstaller/releases/latest/download/";
+        const downloads = platform.includes("win")
+            ? ["ZombieBuddyInstaller-windows-amd64.exe", "Windows"]
+            : platform.includes("mac")
+                ? ["ZombieBuddyInstaller-macos-arm64", "macOS"]
+                : platform.includes("linux")
+                    ? ["ZombieBuddyInstaller-linux-amd64", "Linux"]
+                    : ["", "Unknown platform"];
+        const platformName = downloads[1];
+
+        const setDownloadLabel = (version) => {
+            downloadLabel.textContent = downloads[0]
+                ? `Download ${version} for ${platformName}`
+                : "View latest release";
+        };
+
+        downloadLink.href = downloads[0] ? releaseBase + downloads[0] : "https://github.com/ipatavatsizz/zbinstaller/releases/latest";
+        fetch(latestReleaseUrl, { headers: { Accept: "application/vnd.github+json" } })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(`GitHub Releases API returned ${response.status}`);
+                }
+                return response.json();
+            })
+            .then((release) => {
+                const version = release.tag_name || "latest";
+                setDownloadLabel(version);
+                const asset = release.assets?.find((item) => item.name === downloads[0]);
+                if (!asset) {
+                    throw new Error(`Release asset not found for ${platformName}`);
+                }
+                const commitUrl = `https://api.github.com/repos/ipatavatsizz/zbinstaller/git/ref/tags/${encodeURIComponent(version)}`;
+                return fetch(commitUrl, { headers: { Accept: "application/vnd.github+json" } })
+                    .then((response) => {
+                        if (!response.ok) {
+                            throw new Error(`GitHub tag API returned ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then((ref) => {
+                        const commit = ref.object?.sha?.slice(0, 7) || "unknown";
+                        const size = `${(asset.size / 1024 / 1024).toFixed(1)} MB`;
+                        downloadMeta.textContent = `${version} · ${commit} · ${platformName} · ${size}`;
+                    });
+            })
+            .catch((error) => {
+                setDownloadLabel("latest");
+                downloadMeta.textContent = "Release details are currently unavailable.";
+                console.warn("Could not load release metadata:", error);
+            });
+
+        function setTheme(theme) {
+            document.documentElement.dataset.theme = theme;
+            const light = theme === "light";
+            themeToggle.setAttribute("aria-pressed", String(light));
+            themeToggle.setAttribute("aria-label", light ? "Switch to dark theme" : "Switch to light theme");
+        }
+
+        setTheme(initialTheme);
+        themeToggle.addEventListener("click", () => {
+            const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+            setTheme(nextTheme);
+        });
+    </script>
 </body>
 
 </html>
