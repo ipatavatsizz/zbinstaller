@@ -50,7 +50,9 @@ describe('native Linux/macOS application', () => {
       };
     });
     assert.equal(layout.width, 680);
-    assert.equal(layout.height, 540);
+    // macOS WebKit reports the content area below the native title bar (508px
+    // for a 540px window); Linux reports the full requested height.
+    assert(layout.height >= 500 && layout.height <= 540, `unexpected native content height: ${layout.height}`);
     assert.equal(layout.logoWidth, 96);
     assert.equal(layout.logoHeight, 96);
     assert(layout.authorCentered && layout.authorVisibleAboveStatus && layout.noHorizontalOverflow, JSON.stringify(layout));
