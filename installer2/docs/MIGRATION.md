@@ -129,6 +129,8 @@ Branch'ten bağımsız süreç kontrolü:
 
 - [x] **Windows'ta gerçek Steam'i üretim adaptörüyle normal kapatıp yeniden açan opt-in testi eklemek ve çalıştırmak.** 2026-11-04 tarihinde geçti; [native test](../crates/installer-core/src/platform.rs) normal test/CI koşusunda atlanır, hata durumunda yeniden açmayı dener. [Çalıştırma komutu ve kapsam](../tests/README.md#windows-native-steam-süreç-kabulü-opt-in). Kullanıcının açma/kapatma izni ve test dışı verilere dokunmama sınırı [proje kurallarına](../AGENTS.md) işlendi. Steam/oyun dosyalarına doğrudan yazılmadı.
 
+Güncel Windows tekrar kabulü (2026-11-04): gerçek Steam 3,16 saniyede normal kapandı, 1,06 saniyede yeniden başladı; test sonunda açık bırakıldı. Kurulum/yama/Workshop/indirme/ayar komutu çağrılmadı. Gerçek config flush ve gerçek oyun kabulü bu süreç testinin kapsamında değildir.
+
 Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
 
 - [ ] Workshop aboneliği/indirimi eksikken doğru branch sayfasının açıldığını, beklemenin indirme bitince devam ettiğini ve iptalin hiçbir kurulum yaması yazmadığını doğrulamak.
@@ -156,10 +158,20 @@ Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde 
 
 ### 34. Ana yayın akışını değiştirme
 
-- [ ] Windows izole kabulü ve Linux/macOS deneysel native UI suite'leri başarılı aday commit'ini, workflow'u ve doğrudan uygulama dosyalarını kaydetmek; indirilen Windows EXE'sini native UI suite'inden geçirmek.
+- [x] Windows izole kabulü ve Linux/macOS deneysel native UI suite'leri başarılı aday commit'ini, workflow'u ve doğrudan uygulama dosyalarını kaydetmek; indirilen Windows EXE'sini native UI suite'inden geçirmek. `c7662e9e9489a669381ed9315b2f39f0f2fe5612`, [Rust etiket workflow'u](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41903125865) başarılı. Windows x64/Linux x64/macOS arm64 test/build/lint ve Linux/macOS native UI işleri geçti. Aynı run'dan indirilen Windows EXE'si yerel native UI kabulünden geçti (pencere/odak, 24 DOM testinden ayrı gerçek klavye kontrolleri, diagnostics yeniden açma, çıkış).
 - [x] [Ana `v*` etiket/release workflow'unu](../../.github/workflows/release.yml) Rust [native build workflow'unu](../../.github/workflows/installer2.yml) yeniden kullanacak şekilde değiştirmek. Go derlemesi kaldırıldı; çıktı Windows EXE/Linux dosyası/APP ZIP ve `SHA256SUMS` içeren taslak prerelease'dir. Actionlint geçti. README artık Rust geliştirme/dağıtımını esas alır. macOS site indirmesi APP ZIP'ini seçer ve önceki Go dosya adıyla uyumludur; sekiz paket/link regresyon testi geçti.
-- [ ] Taslak release'in üç uygulama dosyası, SHA-256 listesi, aday commit'i ve sürüm adlarını doğrulamak.
+- [x] Taslak release'in üç uygulama dosyası, SHA-256 listesi, aday commit'i ve sürüm adlarını doğrulamak. [Rust aday taslağı](https://github.com/ipatavatsizz/zbinstaller/releases/tag/untagged-75932294f8141d3d5a54): `v26.11.3-rust-candidate.20261104.2`; draft/prerelease, hedef commit `c7662e9e9489a669381ed9315b2f39f0f2fe5612`. Dört varlık (üç uygulama + `SHA256SUMS`) doğrulandı; üç dosya indirilip hash'leri karşılaştırıldı. Windows dosyası native UI testinde kullanılan dosyayla birebir aynı; macOS ZIP içinde APP executable ve `Info.plist` var. Windows imzası `NotSigned`.
 - [ ] Gerçek oyun/kullanıcı kabulü sonrasında Installer 2 taslağını herkese açık yayımlamak. Bu çalışma otomatik public yayın yapmaz.
+
+Windows'ta tamamlanan kapsam: 31'in izole süreç senaryoları ve gerçek Steam aç/kapat kabulü, 32'nin izole kurulum/başlatıcı döngüsü, 33'ün deneysel imza politikası ve 34'ün Rust derleme/taslak kabulü. Yerelde 42 workspace Rust testi, 24 UI testi, 8 yayın/link testi, fmt ve Clippy geçti; normal workspace çalışmasında üç gerçek Steam/game opt-in testi atlanır. Bunlardan yalnızca dosya yazmayan Steam süreç testi ayrıca çalıştırıldı ve geçti. Gerçek geliştirici oyununa kurulum yapılmadı. Aşağıdaki gerçek oyun/Workshop/config kabul hücreleri bu izole kanıtlarla doldurulmaz.
+
+Doğrulanan aday dosyaları:
+
+| Dosya | SHA-256 |
+| --- | --- |
+| `ZombieBuddyInstaller-windows-amd64.exe` | `ada99c3558b19c26eee3850e136a6b1a53a42d0d4bd6f436f25882574d50349b` |
+| `ZombieBuddyInstaller-linux-amd64` | `b0c310f280fd9d3d46e54effaf075014b4978a5357061a9c50b1b81d59fab0d2` |
+| `ZombieBuddyInstaller-macos-arm64.zip` | `9bcc926e7fc75574471727b5bed50c4d032c2682b14e1362fff66a942eb5c8cd` |
 
 ## Kabul sonuç kaydı
 
@@ -174,7 +186,7 @@ Windows'ta branch'ten bağımsız Steam süreç testi geçti (31. madde). Henüz
 | macOS arm64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
 | macOS arm64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
 
-CI kanıtları: `93501839b3e0f6e77d40586786ac1c4e74f056ef` Linux/macOS deneysel native UI suite'leri ve üç native build için başarılıdır (30. madde). Yeni Windows süreç/başlatıcı ve Rust yayın akışı adayının CI kanıtı 34. maddede kaydedilir. Gerçek Steam/oyun kabulü ayrı bekler. İmza politikası: mevcut Go dağıtımı gibi imzasız deneysel adaylar; [politika](RELEASE.md). Herkese açık yayın için kabul edilen commit henüz yok.
+CI kanıtları: `c7662e9e9489a669381ed9315b2f39f0f2fe5612` üç platform test/build/lint ve Linux/macOS deneysel native UI suite'leri için başarılıdır; Windows indirilen EXE native kabulü ve Rust taslak varlıklarının hash kontrolü de geçti (34. madde). Önceki `9350183` kanıtı tarihsel kayıttır. Gerçek Steam/oyun kabulü ayrı bekler. İmza politikası: mevcut Go dağıtımı gibi imzasız deneysel adaylar; [politika](RELEASE.md). Herkese açık yayın için kabul edilen commit henüz yok; doğrulanan deneysel aday `c7662e9`dur.
 
 Gerçek Steam/oyun dosyaları otomatik testlerle değiştirilmez. Üç hedefin dosya düzenlerinin Windows üzerinde fixture testlerinden geçmesi, Linux/macOS üzerinde native doğrulama yerine geçmez.
 

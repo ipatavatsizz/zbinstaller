@@ -15,3 +15,7 @@ Aracın kendisi kurulmaz: Windows EXE, Linux çalıştırılabilir dosyası, mac
 5. Aday commit'i, workflow bağlantısı, dosya adları ve Windows sonucu [geçiş kaydına](MIGRATION.md) yazılır. Başarısız testte aday kabul edilmez.
 
 Yeni adaylar önce taslak prerelease olarak hazırlanır. Taslağın public yayımlanması ayrı yayın adımıdır. Eski Go kaynakları referans/geri dönüş için korunur; Rust uygulamasını derlemek veya çalıştırmak Go gerektirmez. Linux/macOS manuel masaüstü ve gerçek Steam/oyun kabulleri, [kabul tablosunda](MIGRATION.md#kabul-sonuç-kaydı) açık kalır.
+
+## Doğrulanan aday
+
+2026-11-04: `v26.11.3-rust-candidate.20261104.2`, commit `c7662e9e9489a669381ed9315b2f39f0f2fe5612`. [Etiket workflow'u](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41903125865) üç native build/test/lint ile Linux/macOS native UI suite'lerini geçti ve [taslağı](https://github.com/ipatavatsizz/zbinstaller/releases/tag/untagged-75932294f8141d3d5a54) üretti. Üç uygulama indirildi, hash'leri doğrulandı; indirilen Windows EXE native UI kabulünü geçti. macOS ZIP'in APP yapısı doğrulandı; macOS/Linux dosyaları Windows'ta çalıştırılmadı. Hash listesi ve kapsam [geçiş kaydında](MIGRATION.md#34-ana-yayın-akışını-değiştirme).

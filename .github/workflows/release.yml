@@ -94,6 +94,6 @@ jobs:
         shell: bash
         run: |
           gh release create "$RELEASE_TAG" release-assets/* \
-            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --target "$(git rev-parse HEAD)" \
             --title "ZombieBuddy Installer ${RELEASE_TAG#v}" \
             --draft --prerelease --notes "$RELEASE_NOTES"
