@@ -87,6 +87,13 @@ fn close_window(window: tauri::WebviewWindow, state: State<'_, AppState>) -> Res
     if state.busy.load(Ordering::Acquire) {
         return Err("Wait for the current operation to finish".into());
     }
+    if window.label() == "diagnostics" {
+        window.close().map_err(|error| error.to_string())?;
+        if let Some(main) = window.app_handle().get_webview_window("main") {
+            main.set_focus().map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
     window.close().map_err(|error| error.to_string())
 }
 
@@ -276,7 +283,13 @@ async fn open_workshop(
 }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(feature = "wdio-tests")]
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
         .setup(|app| {

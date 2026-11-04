@@ -24,3 +24,6 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# Native UI acceptance screenshots and local WDIO output
+installer2/test-results/

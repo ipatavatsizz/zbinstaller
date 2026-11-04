@@ -1,4 +1,4 @@
-name: Verify and package Installer 2
+name: Verify and build Installer 2 applications
 
 on:
   push:
@@ -28,12 +28,15 @@ jobs:
           - os: windows-latest
             artifact: installer2-windows-amd64
             target: x86_64-pc-windows-msvc
+            output: ZombieBuddyInstaller-windows-amd64.exe
           - os: ubuntu-22.04
             artifact: installer2-linux-amd64
             target: x86_64-unknown-linux-gnu
+            output: ZombieBuddyInstaller-linux-amd64
           - os: macos-latest
             artifact: installer2-macos-arm64
             target: aarch64-apple-darwin
+            output: ZombieBuddyInstaller-macos-arm64.zip
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -56,24 +59,65 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev patchelf libfuse2
+          sudo apt-get install -y libwebkit2gtk-4.1-dev webkit2gtk-driver xvfb build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev
       - run: npm ci
       - run: npm run build
       - run: npm run test:ui
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - name: Build native packages
+      - name: Build directly runnable application
         run: npm run tauri build -- --target ${{ matrix.target }}
+      - name: Collect application for download
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          OUTPUT_NAME: ${{ matrix.output }}
+        run: |
+          binary_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).mainBinaryName")
+          release_dir="target/$BUILD_TARGET/release"
+          mkdir -p release-assets
+          case "$RUNNER_OS" in
+            Windows) cp "$release_dir/$binary_name.exe" "release-assets/$OUTPUT_NAME" ;;
+            Linux)
+              cp "$release_dir/$binary_name" "release-assets/$OUTPUT_NAME"
+              chmod +x "release-assets/$OUTPUT_NAME"
+              ;;
+            macOS)
+              product_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).productName")
+              ditto -c -k --sequesterRsrc --keepParent "$release_dir/bundle/macos/$product_name.app" "release-assets/$OUTPUT_NAME"
+              ;;
+            *) echo "Unsupported runner: $RUNNER_OS"; exit 1 ;;
+          esac
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            installer2/target/${{ matrix.target }}/release/bundle/nsis/*.exe
-            installer2/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            installer2/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            installer2/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          path: installer2/release-assets/${{ matrix.output }}
           if-no-files-found: error
+      - name: Build test-only native WebDriver application
+        if: runner.os != 'Windows'
+        env:
+          VITE_WDIO_TEST: 'true'
+          BUILD_TARGET: ${{ matrix.target }}
+        run: npm run tauri -- build --no-bundle --features wdio-tests --target "$BUILD_TARGET" --config tests/native/tauri.wdio.conf.json
+      - name: Run Linux native UI acceptance
+        if: runner.os == 'Linux'
+        env:
+          TAURI_TEST_APP: target/${{ matrix.target }}/release/ZombieBuddyInstaller-26.11.3
+          TAURI_TEST_OUTPUT: test-results/native/linux
+        run: xvfb-run --auto-servernum npm run test:native:unix
+      - name: Run macOS native UI acceptance
+        if: runner.os == 'macOS'
+        env:
+          TAURI_TEST_APP: target/${{ matrix.target }}/release/ZombieBuddyInstaller-26.11.3
+          TAURI_TEST_OUTPUT: test-results/native/macos
+        run: npm run test:native:unix
+      - uses: actions/upload-artifact@v5
+        if: runner.os != 'Windows' && always()
+        with:
+          name: installer2-native-ui-${{ runner.os }}
+          path: installer2/test-results/native/
+          if-no-files-found: ignore
 
   draft-release:
     if: github.event_name == 'workflow_dispatch' && inputs.publish_draft
@@ -96,4 +140,4 @@ jobs:
           gh release create "$CANDIDATE_TAG" candidate-assets/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Installer 2 candidate $CANDIDATE_TAG" --draft --prerelease \
-            --notes 'Native packages for acceptance testing. See installer2/docs/MIGRATION.md. Unsigned; not a replacement for the Go release until native acceptance is recorded.'
+            --notes 'Download and run the application; no setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; system WebKitGTK 4.1 required). macOS: unzip and open the APP. See installer2/docs/MIGRATION.md. Unsigned; not a replacement for the Go release until native acceptance is recorded.'

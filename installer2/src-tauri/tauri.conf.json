@@ -17,9 +17,13 @@
         "title": "ZombieBuddy Installer 26.11.3",
         "width": 680,
         "height": 540,
-        "minWidth": 560,
-        "minHeight": 480,
-        "resizable": true,
+        "minWidth": 680,
+        "minHeight": 540,
+        "maxWidth": 680,
+        "maxHeight": 540,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
         "visible": false,
         "center": true,
         "focus": true
@@ -42,12 +46,10 @@
     }
   },
   "bundle": {
-    "active": true,
+    "active": false,
     "publisher": "ipatavatsizz",
     "copyright": "Copyright © 2026 ipatavatsizz",
-    "targets": [
-      "nsis"
-    ],
+    "targets": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

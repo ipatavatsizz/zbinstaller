@@ -48,13 +48,15 @@ The native ZombieBuddy libraries must be available in the selected Workshop bran
 6. Wait while Steam finishes downloading the Workshop item.
 7. Start the installation.
 
+The downloaded tool runs directly; it does not install itself or require a setup wizard. Delete the tool when you no longer need it. Its install/uninstall actions manage the ZombieBuddy mod; deleting the tool does not remove the mod, game backups or diagnostic history.
+
 The installer may close Steam while it updates launch settings. Steam is started again after a successful installation.
 
 Before installing, close Project Zomboid and any other process that may be using its files. The installer creates a rollback snapshot, but keeping a personal backup of important files is still recommended.
 
 ## Building from source
 
-The new Tauri + Rust implementation is in [`installer2/`](./installer2). Windows, Linux and macOS installation logic is implemented with fixture tests, persistent backups/recovery and process locks. See its [development guide](./installer2/README.md) and numbered [migration checklist](./installer2/docs/MIGRATION.md). The [Installer 2 workflow](./.github/workflows/installer2.yml) verifies and packages native candidates; real Steam/game and native platform acceptance are required before replacing the Go release workflow below.
+The new Tauri + Rust implementation is in [`installer2/`](./installer2). Windows, Linux and macOS installation logic is implemented with fixture tests, persistent backups/recovery and process locks. See its [development guide](./installer2/README.md) and numbered [migration checklist](./installer2/docs/MIGRATION.md). The [Installer 2 workflow](./.github/workflows/installer2.yml) verifies and builds directly runnable applications: Windows EXE, Linux executable and macOS APP in a ZIP. Real Steam/game and native platform acceptance are required before replacing the Go release workflow below.
 
 The Go module is located in [`installer/`](./installer).
 

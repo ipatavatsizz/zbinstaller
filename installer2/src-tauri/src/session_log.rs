@@ -7,6 +7,30 @@ use std::{
 const MAX_ENTRIES: usize = 2_000;
 const MAX_BYTES: u64 = 2 * 1024 * 1024;
 
+fn trim_entries(entries: &mut Vec<String>) {
+    let mut bytes = 0usize;
+    let mut keep_from = entries.len();
+    for (index, entry) in entries.iter().enumerate().rev() {
+        let size = entry.len() + usize::from(keep_from < entries.len());
+        if entries.len() - index > MAX_ENTRIES || bytes + size > MAX_BYTES as usize {
+            break;
+        }
+        bytes += size;
+        keep_from = index;
+    }
+    if keep_from > 0 {
+        entries.drain(..keep_from);
+    }
+}
+
+fn serialized(entries: &[String]) -> String {
+    if entries.is_empty() {
+        String::new()
+    } else {
+        entries.join("\n") + "\n"
+    }
+}
+
 #[derive(Default)]
 pub struct SessionLog {
     pub entries: Vec<String>,
@@ -30,6 +54,7 @@ impl SessionLog {
             .map(str::to_owned)
             .collect();
         entries.reverse();
+        trim_entries(&mut entries);
         Ok(Self {
             entries,
             path: Some(path),
@@ -38,15 +63,17 @@ impl SessionLog {
 
     pub fn push(&mut self, entry: String) {
         self.entries.push(entry.clone());
-        if self.entries.len() > MAX_ENTRIES {
-            self.entries.remove(0);
-        }
+        let old_len = self.entries.len();
+        trim_entries(&mut self.entries);
+        let trimmed = self.entries.len() < old_len;
         let Some(path) = &self.path else {
             return;
         };
         let result: io::Result<()> = (|| {
-            if fs::metadata(path).is_ok_and(|metadata| metadata.len() > MAX_BYTES) {
-                fs::write(path, self.entries.join("\n") + "\n")?;
+            let current_bytes = fs::metadata(path).map_or(0, |metadata| metadata.len());
+            let entry_bytes = entry.len() as u64 + 1;
+            if trimmed || current_bytes + entry_bytes > MAX_BYTES {
+                fs::write(path, serialized(&self.entries))?;
             } else {
                 let mut file = fs::OpenOptions::new()
                     .create(true)
@@ -84,5 +111,22 @@ mod tests {
         assert_eq!(second.entries, vec!["previous session"]);
         second.clear().unwrap();
         assert!(SessionLog::open(path).unwrap().entries.is_empty());
+    }
+
+    #[test]
+    fn persisted_history_stays_within_byte_limit() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("installer.log");
+        let mut log = SessionLog::open(path.clone()).unwrap();
+        log.push("x".repeat(MAX_BYTES as usize + 1));
+        assert!(log.entries.is_empty());
+        assert_eq!(fs::metadata(&path).unwrap().len(), 0);
+
+        log.push("recent entry".into());
+        assert!(fs::metadata(&path).unwrap().len() <= MAX_BYTES);
+        assert_eq!(
+            SessionLog::open(path).unwrap().entries,
+            vec!["recent entry"]
+        );
     }
 }
