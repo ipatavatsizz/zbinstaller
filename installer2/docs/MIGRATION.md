@@ -89,12 +89,22 @@ Bu düzeltmeler sonrasında `npm run test:ui`: 24 test geçti; `npm run build`: 
 ### 30. Üç platformda CI ve doğrudan uygulama doğrulaması
 
 - [x] [Installer 2 workflow'unu](../../.github/workflows/installer2.yml) içeren commit'i GitHub'a göndermek ve aynı commit için Windows x64, Linux x64 ve Apple Silicon macOS CI işlerinin başarıyla bittiğini kaydetmek. 2026-11-04: `migration/complete-go-parity` dalındaki `b649174f625f5e830c34f955c418e00a0933a2c0` için [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750) başarılı. Bu kanıt kayıtlı commit'e aittir; çalışma dizinindeki commit edilmemiş değişiklikleri kapsamaz.
-- [ ] Güncel doğrudan uygulama dağıtımı ayarlarıyla aynı commit için üç CI işini doğrulamak; yüklenen EXE, Linux çalıştırılabilir dosyası ve APP ZIP'ini kaydetmek. Aşağıdaki önceki CI çalışması bu değişikliği kapsamaz.
-- [x] Windows x64'te doğrudan çalıştırılabilir EXE'yi setup olmadan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. 2026-11-04: güncel yerel `target/release/ZombieBuddyInstaller-26.11.3.exe` üzerinde `npm run test:native:windows` geçti. Kullanılan WebView2 runtime yüklü Windows ortamı; CI'dan indirilen artifact kabulü ayrı kaydedilir. Windows WebView2 runtime gereklidir.
+- [x] Güncel doğrudan uygulama dağıtımı ayarlarıyla aynı commit için üç CI işini doğrulamak; Windows EXE, Linux çalıştırılabilir dosyası ve APP ZIP artifact'larını kaydetmek. 2026-11-04: `1a46881bceb44d005c3583bb3021f62b14c0ac25`, [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095) başarılı; iş kanıtları aşağıda. Setup paketi üretilmedi.
+- [x] Windows x64'te doğrudan çalıştırılabilir EXE'yi setup olmadan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. 2026-11-04: yerel release EXE ve CI'dan indirilen `ZombieBuddyInstaller-windows-amd64.exe` üzerinde [native UI kabulü](../tests/README.md#windows-native-ui-kabulü) geçti. Pencere 680 × 540; layout, tuşlar, diagnostics yeniden açma ve uygulama çıkışı doğrulandı. Windows WebView2 runtime gereklidir.
 - [ ] Linux'ta indirilen dosyaya çalıştırma izni verip doğrudan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. Sistem WebKitGTK 4.1 ve masaüstü bağımlılıkları gereklidir.
 - [ ] Apple Silicon macOS'ta indirilen ZIP'i açıp APP'i çalıştırmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak.
 
-Tamamlanma ölçütü: aynı commit'in üç başarılı CI bağlantısı ve indirilen uygulamaların native açılış sonucu aşağıdaki kabul kaydına eklenmiş olmalı. Aracın kendisinin sisteme kurulması veya bir setup testi gerekmez. Windows fixture testleri Linux/macOS native sonucu yerine geçmez.
+Tamamlanma ölçütü: aynı commit'in üç başarılı CI bağlantısı ve indirilen uygulamaların native açılış sonucu aşağıdaki kabul kaydına eklenmiş olmalı. CI ile artifact üretimi tamamlandı. Windows indirilen EXE kabulü tamamlandı; Linux ve macOS native açılışları bekliyor. Aracın kendisinin sisteme kurulması veya bir setup testi gerekmez. Windows fixture testleri Linux/macOS native sonucu yerine geçmez.
+
+Güncel doğrudan uygulama CI kanıtları (`1a46881bceb44d005c3583bb3021f62b14c0ac25`, 2026-11-04):
+
+| Hedef | Native CI sonucu | Üretilen indirilebilir dosya |
+| --- | --- | --- |
+| Windows x64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095/job/126489361684) | `ZombieBuddyInstaller-windows-amd64.exe`; indirilen dosya native UI testinden geçti |
+| Linux x64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095/job/126489362305) | `ZombieBuddyInstaller-linux-amd64` |
+| macOS arm64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095/job/126489362202) | `ZombieBuddyInstaller-macos-arm64.zip`; ZIP içinde `ZombieBuddy Installer.app` doğrulandı |
+
+Üç native işte build, UI testleri, Rust biçim kontrolü, workspace testleri ve Clippy geçti. Uygulamalar CI artifact'larına yüklendi. Windows artifact'ı indirildi ve gerçek WebView2 penceresinde açıldı; Linux/macOS artifact'larının derleme ve içerik kontrolü yapıldı, native açılışı henüz yapılmadı. Taslak release adımı çalıştırılmadı; bir sürüm yayımlanmadı.
 
 Önceki dağıtım ayarlarının tarihsel CI kanıtları (`b649174f625f5e830c34f955c418e00a0933a2c0`, 2026-11-04; güncel indirme biçimlerinin kabulü değildir):
 
