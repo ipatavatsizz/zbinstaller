@@ -36,15 +36,26 @@ fn json_fixture_gets_agent_separator_once_and_preserves_settings() {
 
 #[test]
 fn batch_fixture_preserves_launcher_commands_and_normalizes_agent_once() {
-    let input = fixture("ProjectZomboid64.bat");
-    let output = launcher_bat(input).unwrap();
-    let text = String::from_utf8(output.clone()).unwrap();
+    // Exercise both encodings explicitly, independent of Git checkout settings.
+    let fixture = std::str::from_utf8(fixture("ProjectZomboid64.bat"))
+        .unwrap()
+        .replace("\r\n", "\n");
+    for newline in ["\n", "\r\n"] {
+        let input = fixture.replace('\n', newline);
+        let output = launcher_bat(input.as_bytes()).unwrap();
+        let text = String::from_utf8(output.clone()).unwrap();
 
-    assert!(text.contains("SET _JAVA_OPTIONS=-agentlib:zbNative --\r\n"));
-    assert_eq!(text.matches("-agentlib:zbNative").count(), 1);
-    assert!(text.contains("SET PZ_CLASSPATH=./;projectzomboid.jar"));
-    assert!(text.contains("IF %ERRORLEVEL% NEQ 0"));
-    assert_eq!(launcher_bat(&output).unwrap(), output);
+        assert!(text.contains(&format!("SET _JAVA_OPTIONS=-agentlib:zbNative --{newline}")));
+        assert_eq!(text.matches("-agentlib:zbNative").count(), 1);
+        assert!(text.contains("SET PZ_CLASSPATH=./;projectzomboid.jar"));
+        assert!(text.contains("IF %ERRORLEVEL% NEQ 0"));
+        if newline == "\r\n" {
+            assert!(!text.replace("\r\n", "").contains('\n'));
+        } else {
+            assert!(!text.contains('\r'));
+        }
+        assert_eq!(launcher_bat(&output).unwrap(), output);
+    }
 }
 
 #[test]
