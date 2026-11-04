@@ -15,6 +15,12 @@ Varsayılan testler gerçek Steam/oyun kurulumuna yazmaz ve Steam'i kapatmaz. Ka
 - Yarım kalmış journal'ın sonraki çalıştırmada kurtarılması ve izin verilmeyen hedeflerin reddi.
 - İkinci dosya tanıtıcısı ve ayrı test sürecinin aynı kurulum kilidini alamaması.
 
+## Windows'ta izole süreç senaryoları
+
+`cargo test -p installer-core install::scenario_tests --locked` üretimdeki kurulum orkestrasyonunu geçici Steam/oyun dizinleri ve ayrı bir test süreciyle çalıştırır. İki branch için kısmi indirme, tamamlanma, iptal/zaman aşımı, kapanışta config flush ve sonradan eklenen kullanıcı, oyun açılma yarışı, yazma hatası/rollback, yeniden başlatma ve kurtarma hataları doğrulanır. Sekiz yazma noktasının her birinde gerçek atomik replacement'tan sonra hata üretilip eski/yeni dosya ve backup durumları karşılaştırılır.
+
+Bu testler normal workspace/CI testlerine dahildir; gerçek Steam adaptörü yerine izole süreç adaptörü kullanır. Gerçek Steam hesabı, Workshop aboneliği veya oyun açılışı kabulü sayılmaz.
+
 ## Fixture entegrasyonu
 
 [Windows fixture testleri](tests/integration/installation_fixtures.rs) ve [platform eşlik testleri](tests/integration/platform_parity.rs), `cargo test -p installer2-tests` ile çalışır:

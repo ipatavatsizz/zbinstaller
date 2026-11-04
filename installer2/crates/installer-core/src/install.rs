@@ -19,14 +19,63 @@ pub struct Progress {
     pub message: String,
 }
 
+// Keep the production orchestration testable without redirecting global Steam
+// discovery or ever changing the developer's Steam/game files.
+trait InstallRuntime {
+    fn steam_root(&self) -> Result<PathBuf>;
+    fn ensure_game_closed(&self) -> Result<()>;
+    fn stop_steam(&self, root: &Path) -> Result<()>;
+    fn start_steam(&self, root: &Path) -> Result<()>;
+    fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        transaction::atomic_write(path, bytes)
+    }
+    fn download_timing(&self) -> (Duration, Duration) {
+        (Duration::from_secs(60), Duration::from_millis(500))
+    }
+}
+
+struct NativeRuntime;
+
+impl InstallRuntime for NativeRuntime {
+    fn steam_root(&self) -> Result<PathBuf> {
+        platform::steam_root()
+    }
+    fn ensure_game_closed(&self) -> Result<()> {
+        platform::ensure_game_closed()
+    }
+    fn stop_steam(&self, root: &Path) -> Result<()> {
+        platform::stop_steam(root)
+    }
+    fn start_steam(&self, root: &Path) -> Result<()> {
+        platform::start_steam(root)
+    }
+}
+
 pub fn install(branch: Branch, report: impl FnMut(Progress)) -> Result<String> {
     install_with_cancel(branch, report, || false)
 }
 
 pub fn install_with_cancel(
     branch: Branch,
+    report: impl FnMut(Progress),
+    is_cancelled: impl Fn() -> bool,
+) -> Result<String> {
+    platform::ensure_supported()?;
+    install_with_runtime(
+        branch,
+        TargetPlatform::current(),
+        report,
+        is_cancelled,
+        &NativeRuntime,
+    )
+}
+
+fn install_with_runtime(
+    branch: Branch,
+    target: TargetPlatform,
     mut report: impl FnMut(Progress),
     is_cancelled: impl Fn() -> bool,
+    runtime: &impl InstallRuntime,
 ) -> Result<String> {
     let mut progress = |step, message: &str| {
         report(Progress {
@@ -35,35 +84,29 @@ pub fn install_with_cancel(
         })
     };
     progress(1, "Locating Steam, Project Zomboid and Workshop files...");
-    platform::ensure_supported()?;
-    let root = platform::steam_root()?;
+    let root = runtime.steam_root()?;
     let _lock = InstallationLock::acquire(&root)?;
-    let target = TargetPlatform::current();
     let mut environment = discovery::discover_from_for(&root, target)?;
-    platform::ensure_game_closed()?;
+    runtime.ensure_game_closed()?;
     ensure!(
         discovery::workshop_path(&environment.libraries, branch).is_some(),
         "Selected Workshop branch is not subscribed; open its Workshop page first"
     );
-    let workshop = wait_for_workshop(
-        Duration::from_secs(60),
-        Duration::from_millis(500),
-        is_cancelled,
-        || {
-            // Steam can add a library or finish a subscription while the installer waits.
-            environment = discovery::discover_from_for(&root, target)?;
-            let ready = discovery::ready_workshop_path(&environment.libraries, branch, target);
-            if ready.is_none() {
-                progress(
-                    1,
-                    "Waiting for Steam to finish downloading the Workshop build…",
-                );
-            }
-            Ok(ready)
-        },
-    )?;
+    let (timeout, interval) = runtime.download_timing();
+    let workshop = wait_for_workshop(timeout, interval, is_cancelled, || {
+        // Steam can add a library or finish a subscription while the installer waits.
+        environment = discovery::discover_from_for(&root, target)?;
+        let ready = discovery::ready_workshop_path(&environment.libraries, branch, target);
+        if ready.is_none() {
+            progress(
+                1,
+                "Waiting for Steam to finish downloading the Workshop build…",
+            );
+        }
+        Ok(ready)
+    })?;
     progress(2, "Closing Steam before reading its configuration...");
-    with_stopped_steam(&environment, |environment| {
+    with_stopped_steam_using(&environment, runtime, |environment| {
         let _game_lock = InstallationLock::acquire(&environment.game_path)?;
         recover_for(&environment.game_path, &environment.config_paths, target)?;
         let changes = prepare_changes(
@@ -75,7 +118,7 @@ pub fn install_with_cancel(
         let total = changes.len().max(1);
         let mut completed = 0;
         transaction::apply_at(&environment.game_path, &changes, |path, bytes| {
-            transaction::atomic_write(path, bytes)?;
+            runtime.write(path, bytes)?;
             completed += 1;
             progress(
                 (2 + completed * 5 / total) as u8,
@@ -117,10 +160,18 @@ pub(crate) fn with_stopped_steam(
     environment: &Discovery,
     action: impl FnOnce(&Discovery) -> Result<String>,
 ) -> Result<String> {
-    platform::ensure_game_closed()?;
-    platform::stop_steam(&environment.steam_path)?;
+    with_stopped_steam_using(environment, &NativeRuntime, action)
+}
+
+fn with_stopped_steam_using(
+    environment: &Discovery,
+    runtime: &impl InstallRuntime,
+    action: impl FnOnce(&Discovery) -> Result<String>,
+) -> Result<String> {
+    runtime.ensure_game_closed()?;
+    runtime.stop_steam(&environment.steam_path)?;
     let result = (|| {
-        platform::ensure_game_closed()?;
+        runtime.ensure_game_closed()?;
         let refreshed =
             discovery::discover_from_for(&environment.steam_path, environment.platform)?;
         action(&refreshed)
@@ -128,7 +179,7 @@ pub(crate) fn with_stopped_steam(
     if result.is_err() && environment.game_path.join(transaction::JOURNAL).exists() {
         return result.context("Steam was left closed because recovery is incomplete; retry the installer before starting Steam");
     }
-    let restart = platform::start_steam(&environment.steam_path);
+    let restart = runtime.start_steam(&environment.steam_path);
     match (result, restart) {
         (Ok(message), Ok(())) => Ok(format!("{message} Steam is starting.")),
         (Ok(message), Err(error)) => Ok(format!("{message} Start Steam manually: {error:#}")),
@@ -138,6 +189,10 @@ pub(crate) fn with_stopped_steam(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "install_scenarios.rs"]
+mod scenario_tests;
 
 pub fn install_from_paths(game: &Path, configs: &[PathBuf], workshop: &Path) -> Result<()> {
     install_from_paths_for(game, configs, workshop, TargetPlatform::current())

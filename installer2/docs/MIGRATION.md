@@ -86,6 +86,8 @@ Bu düzeltmeler sonrasında `npm run test:ui`: 24 test geçti; `npm run build`: 
 
 **Geçiş henüz yayın kabulünü tamamlamadı.** Aşağıdaki işler sırayla tamamlanır; bir sonucun yokluğu başarı sayılmaz. Gerçek kurulum testleri geliştiricinin mevcut oyunu üzerinde otomatik çalıştırılmaz; ayrı ve yedeklenmiş bir Steam/oyun test ortamı gerekir.
 
+2026-11-04 kapsamı: Windows'ta yapılabilen geliştirme ve izole süreç/başlatıcı kabul işleri sırayla tamamlanır; Linux/macOS deneysel destek olarak kalır. Linux/macOS manuel masaüstü/oyun kabulleri Windows işlerini engellemez ve geçilmiş sayılmaz. 1–29'daki Go işlev eşliği uygulanmıştır; kalan kutular yeni bir özellik listesi değil, kabul ve yayın işidir.
+
 ### 30. Üç platformda CI ve doğrudan uygulama doğrulaması
 
 - [x] [Installer 2 workflow'unu](../../.github/workflows/installer2.yml) içeren commit'i GitHub'a göndermek ve aynı commit için Windows x64, Linux x64 ve Apple Silicon macOS CI işlerinin başarıyla bittiğini kaydetmek. 2026-11-04: `migration/complete-go-parity` dalındaki `b649174f625f5e830c34f955c418e00a0933a2c0` için [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750) başarılı. Bu kanıt kayıtlı commit'e aittir; çalışma dizinindeki commit edilmemiş değişiklikleri kapsamaz.
@@ -120,6 +122,8 @@ Güncel doğrudan uygulama CI kanıtları (`1a46881bceb44d005c3583bb3021f62b14c0
 Bu eski çalışmada frontend build, UI testleri, Rust biçim kontrolü, workspace testleri, Clippy ve o tarihteki dağıtım çıktılarının üretimi geçti; artifact yüklemeleri doğrulandı. İlk CI denemesi Linux/macOS'ta BAT fixture testinin sabit CRLF varsayımını ortaya çıkardı. Test, Git checkout ayarından bağımsız olarak LF ve CRLF girdilerinde satır sonlarının korunmasını ve tekrar yamanın etkisizliğini doğrulayacak şekilde düzeltildi. Taslak release adımı koşulu gereği atlandı; release yayımlanmadı. Güncel EXE/Linux dosyası/APP ZIP dağıtımının CI ve native açılış kabulü ayrıca yapılacaktır; eski setup çıktıları artık istenmez.
 
 ### 31. Gerçek Steam indirme ve süreç davranışı
+
+- [x] **Windows'ta yapılabilen izole süreç senaryoları:** üretimdeki kurulum akışını `InstallRuntime` sınırında izole etmek; LTS ve Beta için eksik abonelik, kısmi indirme/tamamlanma, iptal ve indirme zaman aşımında sıfır yazma; kapanış sırasında yazılan son config ve yeni kullanıcıyı yeniden keşfetme; kapanmayan istemci ve oyun açılma yarışında sıfır yazma; sekiz yazma noktasında rollback ve yeniden başlatma; rollback'te son config'i koruma; restart hatasını raporlama; bozuk journal'da kapalı kalma. [Senaryo testleri](../crates/installer-core/src/install_scenarios.rs) Windows'ta geçti. Config flush/restart gerçek, ayrı bir test sürecinde yapılır; Steam taklidi gerçek Steam istemcisinin veya oyunun kabulü değildir. Tüm dosyalar geçici dizindedir. `cargo test --workspace --locked`, biçim kontrolü, Clippy, frontend build ve 24 UI testi de geçti.
 
 Branch'ten bağımsız süreç kontrolü:
 
