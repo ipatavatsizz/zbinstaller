@@ -23,3 +23,7 @@ path = "tests/integration/installation_fixtures.rs"
 [[test]]
 name = "platform-parity"
 path = "tests/integration/platform_parity.rs"
+
+[[test]]
+name = "windows-launcher"
+path = "tests/integration/windows_launcher.rs"

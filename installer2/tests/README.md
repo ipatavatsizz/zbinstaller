@@ -35,6 +35,10 @@ Bu testler normal workspace/CI testlerine dahildir; gerçek Steam adaptörü yer
 
 Fixture testlerinde native adaptörler gerçek Steam'e yönlendirilmez. [Tauri log testi](../src-tauri/src/session_log.rs) yeniden açılışta log okuma ve diskten temizlemeyi doğrular.
 
+### Windows başlatıcı süreç kabulü
+
+`cargo test -p installer2-tests --test windows-launcher --locked` LTS ve Beta için kurulum, tekrar kurulum, iki yönde branch değişimi ve kaldırmadan sonra yamalanan BAT'ı gerçek `cmd.exe` ile çalıştırır. Alt test süreci gerçek ortam değişkenlerini ve payload dosyalarını okur. Boşluk/`&` içeren yollar, kullanıcı düzenlemeleri, ilk backup ve yönetilen bayrakların temizlenmesi sınanır. Bütün dosyalar geçici dizinlerdedir. Bu başlatıcı süreç testi gerçek JVM/oyun/mod açılışı değildir. Windows dışındaki runner'larda bu hedef sıfır test içerir.
+
 ## UI sözleşmeleri
 
 Diagnostics testleri ayrıca eşzamanlı yenilemelerin tekilleştirilmesini, bekleyen eski yanıtın temizlenen logu geri getirmemesini, yerel işlem/temizleme hatalarının sonraki yenilemede görünür kalmasını ve başarılı temizlemenin hem yerel hem backend geçmişini kaldırmasını doğrular.

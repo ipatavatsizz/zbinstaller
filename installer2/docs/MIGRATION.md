@@ -140,6 +140,8 @@ Tamamlanma ölçütü: üç platform × iki branch için süreç/indirme sonuçl
 
 ### 32. İki branch için gerçek oyun kabulü
 
+- [x] **Windows'ta yapılabilen başlatıcı süreç kabulü:** LTS ve Beta'yı izole oyun/Steam dizininde kurmak, yamalanan BAT'ı gerçek `cmd.exe` ile çalıştırmak, alt sürece iletilen JVM seçeneklerini ve payload dosyalarını doğrulamak; kullanıcı düzenlemeleri sonrasında tekrar kurulum, iki yönde branch değişimi ve kaldırma ardından yeniden başlatıcı çalıştırmak. Boşluk ve `&` içeren yollar, ilk backup'lar, ilgisiz oyun/ayarların korunması sınandı. [Windows başlatıcı testi](../tests/tests/integration/windows_launcher.rs) ve tüm workspace testleri/Clippy Windows'ta geçti. Başlatılan alt süreç test probe'udur; gerçek JVM, Project Zomboid veya ZombieBuddy oyun içi kodu çalıştırılmaz; aşağıdaki gerçek oyun kutuları bu kanıtla işaretlenmez.
+
 Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
 
 - [ ] Kurulumdan sonra doğru platform payload'ının ve mod bayrağının bulunduğunu, oyunun açıldığını ve ZombieBuddy'nin yüklendiğini doğrulamak.
