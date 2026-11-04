@@ -14,7 +14,7 @@ npm run tauri dev
 
 From the repository root in VS Code, use **F5 → Run ZombieBuddy Installer 2 (Tauri)**. It starts Vite and the Rust debug app. The Rust watcher is disabled to avoid locking the running Windows executable/PDB. Closing the main window ends the app; **Shift+F5** stops the debug session.
 
-## Verify and package
+## Verify and build
 
 ```powershell
 npm run build
@@ -25,7 +25,19 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 npm run tauri build
 ```
 
-Native packages appear under `target/release/bundle/`: Windows NSIS, Linux DEB/AppImage, macOS APP/DMG. The [Installer 2 workflow](../.github/workflows/installer2.yml) runs the same checks on native runners and uploads packages. Its manual action can create a draft prerelease with an `installer2-v...` candidate tag. The existing Go tag release workflow remains in place until native acceptance is recorded. Signing credentials are not supplied by this repository.
+This is a download-and-run tool: download the application, run it, then delete it when no longer needed. The tool itself needs no setup or uninstall wizard. Its Install/Uninstall actions manage the ZombieBuddy mod in the game. Diagnostic history and game backups may remain after deleting the tool.
+
+`npm run tauri build` produces the following native applications:
+
+| Platform | Local build output | CI download |
+| --- | --- | --- |
+| Windows x64 | `target/release/ZombieBuddyInstaller-26.11.3.exe` | `ZombieBuddyInstaller-windows-amd64.exe` |
+| Linux x64 | `target/release/ZombieBuddyInstaller-26.11.3` | `ZombieBuddyInstaller-linux-amd64` |
+| macOS arm64 | `target/release/bundle/macos/ZombieBuddy Installer.app` | `ZombieBuddyInstaller-macos-arm64.zip` containing the APP |
+
+Windows requires the WebView2 runtime. On Linux, make the downloaded file executable (`chmod +x ZombieBuddyInstaller-linux-amd64`); the system must provide WebKitGTK 4.1 and its desktop dependencies. On macOS, unzip and open the APP. No setup installer, package-manager package or disk image is produced. A build with `--target` inserts the target triple between `target/` and `release/` in the paths above.
+
+The [Installer 2 workflow](../.github/workflows/installer2.yml) checks each native target and uploads only these application downloads. Its manual action can create a draft prerelease with an `installer2-v...` candidate tag. The existing Go tag release workflow remains in place until native acceptance is recorded. Signing credentials are not supplied by this repository.
 
 `npm run dev` alone serves the view; native commands require the Tauri app. See [test coverage](tests/README.md) and [architecture](docs/ARCHITECTURE.md).
 

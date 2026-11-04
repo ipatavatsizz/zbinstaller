@@ -197,3 +197,58 @@ pub fn open_workshop(branch: Branch) -> Result<()> {
         .context("Could not open Workshop")?;
     Ok(())
 }
+
+// These tests invoke the real client, so normal cargo test and CI must skip them.
+#[cfg(all(test, windows))]
+mod native_tests {
+    use super::*;
+
+    struct RestoreRunningSteam(PathBuf);
+
+    impl Drop for RestoreRunningSteam {
+        fn drop(&mut self) {
+            if !steam_running()
+                && let Err(error) = start_steam(&self.0)
+            {
+                eprintln!("Could not restore Steam after native test: {error:#}");
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "Opt-in native acceptance: gracefully closes and restarts the real Steam client"]
+    fn native_windows_steam_shutdown_restart() -> Result<()> {
+        ensure_game_closed()?;
+        let root = steam_root()?;
+        ensure!(
+            steam_running(),
+            "Start Steam before running native acceptance; no process was changed"
+        );
+        // Arm restoration before shutdown so errors and panic unwinding both retry startup.
+        let _restore = RestoreRunningSteam(root.clone());
+        let shutdown = Instant::now();
+        stop_steam(&root)?;
+        ensure!(!steam_running(), "Steam remained running after shutdown");
+        println!("PASS: Steam exited gracefully in {:?}", shutdown.elapsed());
+
+        // Closing an already stopped client must also succeed without starting it.
+        stop_steam(&root)?;
+        ensure!(
+            !steam_running(),
+            "Repeated shutdown unexpectedly started Steam"
+        );
+
+        let startup = Instant::now();
+        start_steam(&root)?;
+        while !steam_running() {
+            ensure!(
+                startup.elapsed() < Duration::from_secs(30),
+                "Steam did not appear within 30 seconds after startup"
+            );
+            thread::sleep(Duration::from_millis(500));
+        }
+        println!("PASS: Steam process restarted in {:?}", startup.elapsed());
+        println!("No installer, patch, Workshop, download or configuration commands were invoked.");
+        Ok(())
+    }
+}

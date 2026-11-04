@@ -9,6 +9,7 @@
     "check": "tsc --noEmit",
     "test:ui": "vitest run --config vitest.config.ts",
     "test:ui:watch": "vitest --config vitest.config.ts",
+    "test:native:windows": "powershell -NoProfile -File tests/native/windows-ui.ps1",
     "tauri": "tauri"
   },
   "dependencies": {

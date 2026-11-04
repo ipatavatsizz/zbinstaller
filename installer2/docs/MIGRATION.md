@@ -2,44 +2,47 @@
 
 ## Sonuç ve kapsam
 
-Eski Go uygulamasının Windows, Linux ve macOS için gerçekleştirdiği kurulum davranışları Rust çekirdeğine taşındı. Aşağıdaki tablo kod ve otomatik test durumunu gösterir. Bu, üç işletim sisteminde gerçek Steam kurulumunun doğrulandığı anlamına gelmez; yayın kabulü ayrı tutulur.
+Eski Go uygulamasının Windows, Linux ve macOS için gerçekleştirdiği kurulum davranışları Rust çekirdeğine taşındı. Aşağıdaki işaretli maddeler uygulanmış geliştirme işlerini gösterir. Açık yayın kabul maddeleri ayrı bölümde sıralanır. Bu, üç işletim sisteminde gerçek Steam kurulumunun doğrulandığı anlamına gelmez; yayın kabulü ayrı tutulur.
 
 Önceki incelemeye düzeltme: Go sürümü yalnızca JSON başlatıcısını alt klasörlerde arar. Unix başlatıcısını oyun kökünde `ProjectZomboid64.sh`, `ProjectZomboid64.command`, `start-server.sh` sırasıyla seçer. Yeni sürüm aynı seçimi uygular.
 
-## Tek tek iş listesi
+Dağıtım kararı (2026-11-04): Bu araç kendisini sisteme kurmaz. Kullanıcı Windows EXE'sini, Linux çalıştırılabilir dosyasını veya ZIP içindeki macOS APP'ini indirip açar; işi bitince aracı silebilir. Kurulum/kaldırma eylemleri ZombieBuddy moduna aittir. Araç silindiğinde mod, oyun yedekleri ve kalıcı diagnostics geçmişi otomatik silinmez. Setup kurucusu ve sistem paket yöneticisi kurulumu yayın şartı değildir. Önceki NSIS/DEB/AppImage/DMG yönlendirmeleri bu kararla kaldırıldı; geçmiş CI kanıtları aşağıda yalnızca tarihsel kayıt olarak korunur.
 
-| # | Özellik / yapılacak iş | Durum ve uygulama |
-| --- | --- | --- |
-| 1 | Mevcut Git değişikliklerini korumak | `migration/complete-go-parity` dalı; başlangıç değişiklikleri ayrı commit'te korundu. |
-| 2 | Windows Steam Registry keşfi | HKCU/HKLM, 32/64 bit görünümler, `SteamPath`/`InstallPath` korunur. |
-| 3 | Linux Steam keşfi | `.steam/steam`, `.local/share/Steam`, küçük harfli alternatif, Flatpak ve Snap yolları taşındı. |
-| 4 | macOS Steam keşfi | Kullanıcı Steam verisi ve sistem/kullanıcı Steam.app çalıştırıcıları taşındı. |
-| 5 | Ek Steam kütüphaneleri ve oyun manifestleri | Yeni/eski `libraryfolders.vdf` biçimleri, özel oyun klasör adı ve varsayılan klasör desteği; bozuk oyun manifestinde diğer kütüphanelere devam edilir. |
-| 6 | LTS/Beta Workshop kimlikleri ve sürümleri | Aynı kimlikler, `VERSION` okuma, eksik sürüm ile abonelik ayrımı korunur. |
-| 7 | Workshop sayfası açma | Sabit Workshop kimlikleri Steam istemcisine iletilir; aynı anda kurulumla çalışamaz. |
-| 8 | İndirmenin tamamlanmasını bekleme | 60 saniye zaman aşımı, düzenli yeniden keşif ve iptal; hazır dosyalar ile varsa ACF kaydı aynı kütüphaneden doğrulanır. Eski sürümdeki ACF bulunmayan yerel payload desteği korunur. |
-| 9 | Platforma uygun payload kopyalama | Windows DLL, Linux SO, macOS DYLIB ve ortak JAR dosyası; boş payload reddedilir. |
-| 10 | Platforma uygun başlatma bayrakları | Windows `-agentlib:zbNative --`; Unix `-javaagent:ZombieBuddy.jar --`. |
-| 11 | JSON başlatıcısının alt klasörlerde bulunması | Kök öncelikli ve büyük/küçük harfe duyarsız arama; directory symlink'leri izlenmez. |
-| 12 | JSON yaması | Yalnızca root `vmArgs` kurulum sırasında değiştirilir; diğer ayarlar korunur; tekrar kurulum bayrağı çoğaltmaz. |
-| 13 | Windows BAT yaması | Mevcut `_JAVA_OPTIONS` ve satır sonları korunur; mevcut çıplak native bayrağı normalize edilir. |
-| 14 | Linux/macOS betik yaması | Üç eski başlatıcı adı desteklenir; `_JAVA_OPTIONS` korunur; shebang ilk satırda ve dosya izinleri yerinde kalır. |
-| 15 | Steam kullanıcı yapılandırmalarının yaması | Kullanıcılar taranır; yalnızca Project Zomboid launch seçenekleri değiştirilir; eksik/çift/anlaşılmaz hedef reddedilir. |
-| 16 | İlk orijinal `.backup` dosyaları | JSON, betik/BAT ve yamalanan Steam yapılandırmaları için oluşturulur; mevcut Go yedekleri değiştirilmez. Yedekler de rollback kapsamındadır. |
-| 17 | Doğrulama ve atomik yazma | Bütün değişiklikler ilk yazmadan önce hazırlanır; aynı dizinde geçici dosya, sync ve atomik replacement kullanılır. |
-| 18 | Hata durumunda geri alma | Değiştirilen/eski/silinen dosyalar ve sonradan oluşan yedekler geri alınır; bütün geri alma hataları raporlanır. |
-| 19 | Çökme kurtarma | Oyun dizininde `.zombiebuddy-transaction.json`; işlem başında yazılır, başarılı commit sonrası silinir. Sonraki kurulum/kaldırma/diagnostics işlemi, Steam kapandıktan sonra yarım kalan yazmaları geri alır. |
-| 20 | Süreçler arası kurulum kilidi | Steam ve oyun dizinlerinde OS dosya kilitleri; ikinci süreç testi mevcut. Kilit dosyası silinmez, kilit OS tarafından bırakılır. |
-| 21 | Steam kapatma ve yeniden başlatma | Windows/Linux/macOS adaptörleri; kapatma sonrası yeniden keşif ve snapshot; başarıdan veya tamamlanmış rollback'ten sonra başlatma. |
-| 22 | Kaldırma hatası | Payload silinirken root ve iç içe JSON `vmArgs` içinde kalan mod bayrakları da temizlenir; BAT yorumları ve kullanıcının diğer seçenekleri korunur. |
-| 23 | Diagnostics manuel yamaları | Aynı platform seçimi, doğrulama, yedek, kilit ve işlem/kurtarma mekanizmasına bağlandı. Birden fazla kullanıcıdan sonraki geçersiz yapılandırma önceki kullanıcıya yazma yapılmasını önler. |
-| 24 | Diagnostics görünümü ve geçmişi | Steam/oyun/Library/config/dosya/branch durumu; oyun yokken kısmi rapor; uygulama yeniden başlatıldığında okunabilen, sınırlı boyutlu log; kalıcı log temizleme. |
-| 25 | Eski etkileşimler | F5 ve görünür diagnostics düğmesi; Escape; sağ tık ve klavye/dokunma ile branch eylemleri; yazar bağlantıları. |
-| 26 | UI işlem durumu | İki branch birlikte kilitlenir; indirme beklemesi iptal edilebilir; 1–8 adımları yüzdeye çevrilir; bitiş/hatada eski ilerleme mesajı ekranda kalmaz. |
-| 27 | Üretim varlıkları ve izinleri | Logo Vite import'u ile paketlenir; platform ikonları eklendi; native URL izni yalnızca üç sabit proje sayfasına daraltıldı. |
-| 28 | Üç platform CI / paketleme | `installer2.yml`: native Windows, Linux ve macOS testleri, lint ve paketleme; NSIS, DEB/AppImage, APP/DMG ayarları; isteğe bağlı taslak prerelease. |
-| 29 | Regresyon testleri | Saf patcher, fixture, üç platform × iki branch, tekrar kurulum/kaldırma, bozuk girdi, yedek koruma, yarım işlem kurtarma, ikinci süreç kilidi ve UI testleri. |
-| 30 | Release geçişi kabulü | Aşağıdaki gerçek ortam kontrolleri tamamlanana kadar Go etiket/release akışı korunur. |
+Yerel doğrulama (2026-11-04): Güncel ayarlarla `npm run tauri build` yalnızca `target/release/ZombieBuddyInstaller-26.11.3.exe` uygulamasını üretti; setup adımı çalışmadı. Bu EXE üzerinde `npm run test:native:windows` geçti (açılış, görünüm, klavye, diagnostics yeniden açılışı ve çıkış). 24 UI testi, 15 çekirdek testi, Rust biçim kontrolü ve Clippy geçti; gerçek Steam süreç testi varsayılan olarak atlandı. Linux/macOS dağıtım değişiklikleri bu Windows ortamında native doğrulanmadı; uzak CI henüz yeniden çalıştırılmadı.
+
+## Tamamlanan geliştirme işleri
+
+Her maddede ilk cümle görevi, devamı mevcut uygulamayı açıklar. `[x]` tamamlandı; `[ ]` henüz tamamlanmadı. Bu bölümün tamamlanması yayın kabulünün tamamlandığı anlamına gelmez.
+
+- [x] **1. Mevcut Git değişikliklerini korumak.** `migration/complete-go-parity` dalı; başlangıç değişiklikleri ayrı commit'te korundu.
+- [x] **2. Windows Steam Registry keşfi.** HKCU/HKLM, 32/64 bit görünümler, `SteamPath`/`InstallPath` korunur.
+- [x] **3. Linux Steam keşfi.** `.steam/steam`, `.local/share/Steam`, küçük harfli alternatif, Flatpak ve Snap yolları taşındı.
+- [x] **4. macOS Steam keşfi.** Kullanıcı Steam verisi ve sistem/kullanıcı Steam.app çalıştırıcıları taşındı.
+- [x] **5. Ek Steam kütüphaneleri ve oyun manifestleri.** Yeni/eski `libraryfolders.vdf` biçimleri, özel oyun klasör adı ve varsayılan klasör desteği; bozuk oyun manifestinde diğer kütüphanelere devam edilir.
+- [x] **6. LTS/Beta Workshop kimlikleri ve sürümleri.** Aynı kimlikler, `VERSION` okuma, eksik sürüm ile abonelik ayrımı korunur.
+- [x] **7. Workshop sayfası açma.** Sabit Workshop kimlikleri Steam istemcisine iletilir; aynı anda kurulumla çalışamaz.
+- [x] **8. İndirmenin tamamlanmasını bekleme.** 60 saniye zaman aşımı, düzenli yeniden keşif ve iptal; hazır dosyalar ile varsa ACF kaydı aynı kütüphaneden doğrulanır. Eski sürümdeki ACF bulunmayan yerel payload desteği korunur.
+- [x] **9. Platforma uygun payload kopyalama.** Windows DLL, Linux SO, macOS DYLIB ve ortak JAR dosyası; boş payload reddedilir.
+- [x] **10. Platforma uygun başlatma bayrakları.** Windows `-agentlib:zbNative --`; Unix `-javaagent:ZombieBuddy.jar --`.
+- [x] **11. JSON başlatıcısının alt klasörlerde bulunması.** Kök öncelikli ve büyük/küçük harfe duyarsız arama; directory symlink'leri izlenmez.
+- [x] **12. JSON yaması.** Yalnızca root `vmArgs` kurulum sırasında değiştirilir; diğer ayarlar korunur; tekrar kurulum bayrağı çoğaltmaz.
+- [x] **13. Windows BAT yaması.** Mevcut `_JAVA_OPTIONS` ve satır sonları korunur; mevcut çıplak native bayrağı normalize edilir.
+- [x] **14. Linux/macOS betik yaması.** Üç eski başlatıcı adı desteklenir; `_JAVA_OPTIONS` korunur; shebang ilk satırda ve dosya izinleri yerinde kalır.
+- [x] **15. Steam kullanıcı yapılandırmalarının yaması.** Kullanıcılar taranır; yalnızca Project Zomboid launch seçenekleri değiştirilir; eksik/çift/anlaşılmaz hedef reddedilir.
+- [x] **16. İlk orijinal `.backup` dosyaları.** JSON, betik/BAT ve yamalanan Steam yapılandırmaları için oluşturulur; mevcut Go yedekleri değiştirilmez. Yedekler de rollback kapsamındadır.
+- [x] **17. Doğrulama ve atomik yazma.** Bütün değişiklikler ilk yazmadan önce hazırlanır; aynı dizinde geçici dosya, sync ve atomik replacement kullanılır.
+- [x] **18. Hata durumunda geri alma.** Değiştirilen/eski/silinen dosyalar ve sonradan oluşan yedekler geri alınır; bütün geri alma hataları raporlanır.
+- [x] **19. Çökme kurtarma.** Oyun dizininde `.zombiebuddy-transaction.json`; işlem başında yazılır, başarılı commit sonrası silinir. Sonraki kurulum/kaldırma/diagnostics işlemi, Steam kapandıktan sonra yarım kalan yazmaları geri alır.
+- [x] **20. Süreçler arası kurulum kilidi.** Steam ve oyun dizinlerinde OS dosya kilitleri; ikinci süreç testi mevcut. Kilit dosyası silinmez, kilit OS tarafından bırakılır.
+- [x] **21. Steam kapatma ve yeniden başlatma.** Windows/Linux/macOS adaptörleri; kapatma sonrası yeniden keşif ve snapshot; başarıdan veya tamamlanmış rollback'ten sonra başlatma.
+- [x] **22. Kaldırma hatası.** Payload silinirken root ve iç içe JSON `vmArgs` içinde kalan mod bayrakları da temizlenir; BAT yorumları ve kullanıcının diğer seçenekleri korunur.
+- [x] **23. Diagnostics manuel yamaları.** Aynı platform seçimi, doğrulama, yedek, kilit ve işlem/kurtarma mekanizmasına bağlandı. Birden fazla kullanıcıdan sonraki geçersiz yapılandırma önceki kullanıcıya yazma yapılmasını önler.
+- [x] **24. Diagnostics görünümü ve geçmişi.** Steam/oyun/Library/config/dosya/branch durumu; oyun yokken kısmi rapor; uygulama yeniden başlatıldığında okunabilen log (2.000 kayıt ve 2 MiB sınırı); kalıcı log temizleme.
+- [x] **25. Eski etkileşimler.** F5 ve görünür diagnostics düğmesi; Escape; sağ tık ve klavye/dokunma ile branch eylemleri; yazar bağlantıları.
+- [x] **26. UI işlem durumu.** İki branch birlikte kilitlenir; indirme beklemesi iptal edilebilir; 1–8 adımları yüzdeye çevrilir; bitiş/hatada eski ilerleme mesajı ekranda kalmaz.
+- [x] **27. Üretim varlıkları ve izinleri.** Logo Vite import'u ile paketlenir; platform ikonları eklendi; native URL izni yalnızca üç sabit proje sayfasına daraltıldı.
+- [x] **28. Üç platform CI / uygulama dağıtımı yapılandırması.** [Workflow](../../.github/workflows/installer2.yml): native testler ve lint sonrasında doğrudan Windows EXE, Linux çalıştırılabilir dosyası ve macOS APP ZIP'i toplar; isteğe bağlı taslak prerelease destekler. Windows/Linux bundling kapalı, macOS hedefi yalnızca APP. Önceki üç başarılı CI işi yeni dağıtım ayarlarının doğrulaması değildir; güncel commit'in CI ve native açılış kabulü 30. maddede izlenir.
+- [x] **29. Regresyon testleri.** Saf patcher, fixture, üç platform × iki branch, tekrar kurulum/kaldırma, bozuk girdi, yedek koruma, yarım işlem kurtarma, ikinci süreç kilidi ve UI testleri.
 
 ## Bilinçli davranış farkları
 
@@ -51,26 +54,107 @@ Eski Go uygulamasının Windows, Linux ve macOS için gerçekleştirdiği kurulu
 - Go uygulaması yeni kilidi kullanmaz; eski ve yeni sürümü aynı kurulum üzerinde eşzamanlı çalıştırmayın.
 - VDF quoted/unquoted token, BOM, satır/blok yorumları ve escape'ler desteklenir. `#include`/`#base` ve koşullu VDF direktifleri anlaşılmaz girdi olarak reddedilir.
 
-## Doğrulama (2026-11-03, Windows x64)
+## Son doğrulama (2026-11-04, Windows x64)
+
+Diagnostics takip düzeltmeleri (2026-11-04):
+
+- [x] Yenileme isteklerini tekilleştirmek ve log temizlemeden önce başlayan yanıtların silinen kayıtları geri getirmesini önlemek. Bekleyen backend yanıtıyla regresyon testi eklendi.
+- [x] Yerel işlem/log temizleme hatalarını otomatik yenilemede korumak. Yerel pencere kayıtları backend geçmişiyle birlikte gösterilir; başarılı log temizleme ikisini de temizler. Hata ve sonraki yenileme senaryoları regresyon testleriyle doğrulandı.
+
+- [x] Diagnostics dosya raporu ve durum/log isteklerinin hatalarını ayrı ele almak. Dosya raporu alınamasa da geçmiş yüklenir; durum isteği başarısızsa dosya raporu hata mesajıyla birlikte gösterilir. Sonraki başarılı yenilemede görünüm toparlanır.
+- [x] Otomatik log yenilemesinde okuma konumunu korumak. Kullanıcı en alttaysa yeni kayıtlar takip edilir; eski kayıtları okuyorsa kaydırma konumu korunur. Değişmeyen içerik yeniden oluşturulmaz; metin seçimi korunur.
+
+Bu düzeltmeler sonrasında `npm run test:ui`: 24 test geçti; `npm run build`: geçti. Aşağıdaki önceki native kabul kanıtları bu değişikliklerin native doğrulaması değildir.
 
 - `npm run build`: geçti; logo üretim varlıklarına dahil.
-- `npm run test:ui`: 12 test geçti.
+- `npm run test:ui`: 15 test geçti.
 - `cargo fmt --all -- --check`: geçti.
-- `cargo test --workspace --locked`: 32 Rust testi geçti (15 çekirdek, 1 native log, 16 fixture/entegrasyon).
-- `cargo clippy --workspace --all-targets -- -D warnings`: geçti.
-- `npm run tauri build`: Windows release uygulaması ve NSIS paketi üretildi.
-- Native Windows WebView2 smoke kontrolü: iki branch, logo, activity alanı ve diagnostics kontrolleri yüklendi; diagnostics native komutla kapanıp yeniden açıldı. Hiçbir install/uninstall/patch komutu çağrılmadı; Steam kapatılmadı.
-- Linux/macOS Rust standard library indirmesi bu ortamda ilerlemedi (iki indirme dosyası 0 bayt); çapraz hedef kontrolü çalıştırılamadı. Yerel CI işleri hazırdır, sonuçları bu çalışma sırasında alınmamıştır.
+- `cargo test --workspace --locked`: 33 Rust testi geçti (15 çekirdek, 2 native log, 16 fixture/entegrasyon).
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`: geçti.
+- Önceki `npm run tauri build`: Windows release uygulaması üretildi; aynı çalışmadaki setup çıktısı artık dağıtım hedefi değildir.
+- `npm run test:native:windows`: geçti; iki branch, logo, yerleşim, pencere boyutu/odak/stilleri, menü klavyesi, F5/Escape ve diagnostics yeniden açılışı doğrulandı. Hiçbir install/uninstall/patch komutu çağrılmadı; Steam kapatılmadı.
+- Opt-in `native_windows_steam_shutdown_restart`: geçti; gerçek Steam üretim adaptörüyle yaklaşık 2,74 saniyede normal kapandı, kapalıyken tekrar kapatma etkisiz kaldı, yeniden başlatıldıktan yaklaşık 1,08 saniye sonra Steam süreci görüldü. Test Steam'i açık bıraktı; kurulum/yama/Workshop/indirme/ayar komutu çağrılmadı. Bu sonuç branch'ten bağımsız süreç kabulüdür; oyun veya config flush kabulü değildir.
+- Linux/macOS native testleri bu Windows ortamında çalıştırılmadı; aşağıdaki 30. maddede kaydedilen uzak CI çalışmasında kendi native runner'larında geçti. Önceki 2026-11-03 denemesinde Rust standard library indirmesi ilerlemediği için çapraz hedef kontrolü çalıştırılamamıştı. CI testleri ve derleme, dağıtılan uygulamanın native açılışı veya gerçek Steam/oyun kabulünün yerine geçmez; açık doğrulamalar 30–32. maddelerdedir.
 
-## Yayın kabulü: dış ortamda kalan işler
+## Tamamlanan Windows native kabul işleri
 
 - [x] Windows WebView2: release uygulamasının açılışı, ana görünüm/varlıklar, diagnostics yükleme ve kapatıp yeniden açma için otomatik smoke kontrolü.
-- [ ] Windows: kullanıcı etkileşimiyle odak, yeniden boyutlandırma ve klavye kullanılabilirliği kabulü (F5/Escape UI testlerinde kapsanır).
-- [ ] Ayrı bir Steam/oyun ortamında iki branch'in gerçek kurulumu, tekrar kurulumu, kaldırılması ve oyunun çalıştırılması.
-- [ ] Steam'in gerçek indirme, kapatma, son config flush ve yeniden başlatma davranışı.
-- [ ] Linux ve Apple Silicon macOS makinelerinde native CI sonuçları, paket açma ve gerçek Steam/oyun kabulü.
-- [ ] Yayın için imza/notarization isteniyorsa sertifika, kimlik ve secret'ların sağlanması (Go sürümünün özelliği değildir).
-- [ ] Kabul sonuçlarını kaydettikten sonra ana etiket/release akışını Installer 2'ye geçirmek.
+- [x] Windows: release uygulamasında native WebView2 ile odak, 680 × 540 sabit pencere boyutu, boyutlandırma/büyütme/küçültme engeli, menü tuşları (Tab/yön/Home/End/Enter/Space/Escape), F5 diagnostics açma-yeniden açma ve uygulamadan çıkış doğrulandı. Yazar bağlantısı alt durum panelinin hemen üstünde ortalı ve görünür; düzen taşmıyor.
+- [x] Native Windows kabul testini `npm run test:native:windows` ile tekrar çalıştırılabilir hale getirmek ve kullanımını [test planına](../tests/README.md#windows-native-ui-kabulü) eklemek. 2026-11-04 tarihinde yeni release build üzerinde geçti.
+
+## Kalan işler (sırayla)
+
+**Geçiş henüz yayın kabulünü tamamlamadı.** Aşağıdaki işler sırayla tamamlanır; bir sonucun yokluğu başarı sayılmaz. Gerçek kurulum testleri geliştiricinin mevcut oyunu üzerinde otomatik çalıştırılmaz; ayrı ve yedeklenmiş bir Steam/oyun test ortamı gerekir.
+
+### 30. Üç platformda CI ve doğrudan uygulama doğrulaması
+
+- [x] [Installer 2 workflow'unu](../../.github/workflows/installer2.yml) içeren commit'i GitHub'a göndermek ve aynı commit için Windows x64, Linux x64 ve Apple Silicon macOS CI işlerinin başarıyla bittiğini kaydetmek. 2026-11-04: `migration/complete-go-parity` dalındaki `b649174f625f5e830c34f955c418e00a0933a2c0` için [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750) başarılı. Bu kanıt kayıtlı commit'e aittir; çalışma dizinindeki commit edilmemiş değişiklikleri kapsamaz.
+- [ ] Güncel doğrudan uygulama dağıtımı ayarlarıyla aynı commit için üç CI işini doğrulamak; yüklenen EXE, Linux çalıştırılabilir dosyası ve APP ZIP'ini kaydetmek. Aşağıdaki önceki CI çalışması bu değişikliği kapsamaz.
+- [x] Windows x64'te doğrudan çalıştırılabilir EXE'yi setup olmadan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. 2026-11-04: güncel yerel `target/release/ZombieBuddyInstaller-26.11.3.exe` üzerinde `npm run test:native:windows` geçti. Kullanılan WebView2 runtime yüklü Windows ortamı; CI'dan indirilen artifact kabulü ayrı kaydedilir. Windows WebView2 runtime gereklidir.
+- [ ] Linux'ta indirilen dosyaya çalıştırma izni verip doğrudan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. Sistem WebKitGTK 4.1 ve masaüstü bağımlılıkları gereklidir.
+- [ ] Apple Silicon macOS'ta indirilen ZIP'i açıp APP'i çalıştırmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak.
+
+Tamamlanma ölçütü: aynı commit'in üç başarılı CI bağlantısı ve indirilen uygulamaların native açılış sonucu aşağıdaki kabul kaydına eklenmiş olmalı. Aracın kendisinin sisteme kurulması veya bir setup testi gerekmez. Windows fixture testleri Linux/macOS native sonucu yerine geçmez.
+
+Önceki dağıtım ayarlarının tarihsel CI kanıtları (`b649174f625f5e830c34f955c418e00a0933a2c0`, 2026-11-04; güncel indirme biçimlerinin kabulü değildir):
+
+| Hedef | Native CI sonucu | Üretilen paket / yüklenen artifact |
+| --- | --- | --- |
+| Windows x64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750/job/126468731937) | NSIS / `installer2-windows-amd64` |
+| Linux x64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750/job/126468732265) | DEB + AppImage / `installer2-linux-amd64` |
+| macOS arm64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750/job/126468732291) | APP + DMG üretildi; DMG / `installer2-macos-arm64` |
+
+Bu eski çalışmada frontend build, UI testleri, Rust biçim kontrolü, workspace testleri, Clippy ve o tarihteki dağıtım çıktılarının üretimi geçti; artifact yüklemeleri doğrulandı. İlk CI denemesi Linux/macOS'ta BAT fixture testinin sabit CRLF varsayımını ortaya çıkardı. Test, Git checkout ayarından bağımsız olarak LF ve CRLF girdilerinde satır sonlarının korunmasını ve tekrar yamanın etkisizliğini doğrulayacak şekilde düzeltildi. Taslak release adımı koşulu gereği atlandı; release yayımlanmadı. Güncel EXE/Linux dosyası/APP ZIP dağıtımının CI ve native açılış kabulü ayrıca yapılacaktır; eski setup çıktıları artık istenmez.
+
+### 31. Gerçek Steam indirme ve süreç davranışı
+
+Branch'ten bağımsız süreç kontrolü:
+
+- [x] **Windows'ta gerçek Steam'i üretim adaptörüyle normal kapatıp yeniden açan opt-in testi eklemek ve çalıştırmak.** 2026-11-04 tarihinde geçti; [native test](../crates/installer-core/src/platform.rs) normal test/CI koşusunda atlanır, hata durumunda yeniden açmayı dener. [Çalıştırma komutu ve kapsam](../tests/README.md#windows-native-steam-süreç-kabulü-opt-in). Kullanıcının açma/kapatma izni ve test dışı verilere dokunmama sınırı [proje kurallarına](../AGENTS.md) işlendi. Steam/oyun dosyalarına doğrudan yazılmadı.
+
+Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
+
+- [ ] Workshop aboneliği/indirimi eksikken doğru branch sayfasının açıldığını, beklemenin indirme bitince devam ettiğini ve iptalin hiçbir kurulum yaması yazmadığını doğrulamak.
+- [ ] Steam normal kapanırken son kullanıcı ayarlarının diske yazıldığını ve bu ayarların kurulumdan sonra korunduğunu doğrulamak.
+- [ ] Steam kapanmıyorsa zaman aşımında hiçbir kurulum yaması yazılmadığını doğrulamak.
+- [ ] Başarılı işlemden ve tamamlanmış rollback'ten sonra Steam'in yeniden başladığını doğrulamak; rollback denemesi için yalnızca ayrı test ortamında kontrollü yazma hatası kullanmak.
+
+Tamamlanma ölçütü: üç platform × iki branch için süreç/indirme sonuçları, kullanılan Steam sürümü ve diagnostics çıktısı kaydedilmiş olmalı. Fixture testleri süreçlerin gerçek davranışını doğrulamaz.
+
+### 32. İki branch için gerçek oyun kabulü
+
+Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
+
+- [ ] Kurulumdan sonra doğru platform payload'ının ve mod bayrağının bulunduğunu, oyunun açıldığını ve ZombieBuddy'nin yüklendiğini doğrulamak.
+- [ ] Tekrar kurulumdan sonra bayrakların çoğalmadığını, ilk `.backup` içeriklerinin değişmediğini ve oyunun yeniden açıldığını doğrulamak.
+- [ ] Kurulumdan sonra eklenen ilgisiz kullanıcı seçeneklerinin kaldırma işleminde korunduğunu, mod payload/bayraklarının temizlendiğini ve oyunun modsuz açıldığını doğrulamak.
+
+Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde kurulum, tekrar kurulum ve kaldırma sonucu ile oyun açılış kanıtı bulunmalı.
+
+### 33. İmza politikası (yayın kararı)
+
+- [ ] Doğrudan uygulamalar için Windows imzası ve macOS imza/notarization gereksinimini kararlaştırıp kaydetmek. Gerekliyse sertifika/kimlik/secret'ları CI'a sağlamak ve imzalı uygulamaları doğrulamak; gerekmiyorsa imzasız yayın kararını ve platform uyarılarını kabul kaydına yazmak. Bu bir ürün/yayın kararıdır; Go özellik eşliği için zorunlu değildir. Secret değerleri bu belgeye yazılmaz.
+
+### 34. Ana yayın akışını değiştirme
+
+- [ ] 30–33 tamamlandıktan sonra kabul edilen commit'i ve doğrudan uygulama dosyalarını kaydetmek; açık kabul hatası kalmadığını doğrulamak.
+- [ ] [Ana `v*` etiket/release workflow'unu](../../.github/workflows/release.yml) kabul edilen Installer 2 EXE/Linux dosyası/APP ZIP'ini üretecek şekilde değiştirmek. Bu adım henüz uygulanmadı; Go yayın akışı etkin.
+- [ ] Önce taslak release varlıklarını ve sürüm adlarını doğrulamak, ardından Installer 2 yayınını yayımlamak.
+
+## Kabul sonuç kaydı
+
+Windows'ta branch'ten bağımsız Steam süreç testi geçti (31. madde). Henüz branch bazında gerçek Steam/oyun kabul sonucu yok. Aşağıdaki hücreler yalnızca ilgili deneme çalıştırıldıktan sonra tarih ve kanıt bağlantısıyla değiştirilir. `Bekliyor`, başarısızlık veya başarı anlamına gelmez. 31 ve 32'deki branch bazında kutular ancak ilgili sütun üç platformun iki branch'inde de tamamlandığında işaretlenir.
+
+| Ortam / branch | Commit / uygulama dosyası / Steam sürümü | İndirme / iptal | Kapatma / flush / zaman aşımı / yeniden başlatma / rollback | Kurulum + oyun | Tekrar kurulum + oyun | Kaldırma + oyun | Tarih / kanıt |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Windows x64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| Windows x64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| Linux x64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| Linux x64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| macOS arm64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| macOS arm64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+
+CI kanıtları: 30. maddede önceki commit'in üç başarılı native işi tarihsel kayıt olarak bulunur. Güncel doğrudan uygulama indirmelerinin CI ve native açılış kanıtları: bekliyor. İmza politikası: kararlaştırılmadı. Yayın için kabul edilen commit: henüz yok.
 
 Gerçek Steam/oyun dosyaları otomatik testlerle değiştirilmez. Üç hedefin dosya düzenlerinin Windows üzerinde fixture testlerinden geçmesi, Linux/macOS üzerinde native doğrulama yerine geçmez.
 

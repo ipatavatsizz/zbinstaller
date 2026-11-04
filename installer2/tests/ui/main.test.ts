@@ -30,14 +30,13 @@ describe('main window UI contract', () => {
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-  it('shows discovered branch versions, system appearance and a diagnostics control', async () => {
+  it('shows discovered branch versions, follows system appearance and closes with Escape', async () => {
     const { App } = await import('../../src/main');
     render(createElement(App));
     expect(await screen.findByRole('button', { name: /install · 2.3.4/i })).toBeTruthy();
+    expect(screen.queryByLabelText('Installation check')).toBeNull();
     expect(screen.getByLabelText('Switch to light theme')).toBeTruthy();
     expect(document.documentElement.classList.contains('dark')).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /diagnostics/i }));
-    expect(api.openDiagnostics).toHaveBeenCalledOnce();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(api.closeWindow).toHaveBeenCalledOnce();
   });
@@ -88,7 +87,7 @@ describe('main window UI contract', () => {
     expect(keyEvent.defaultPrevented).toBe(true);
     expect(api.openDiagnostics).toHaveBeenCalledOnce();
     fireEvent.contextMenu(screen.getByText('Stable release').closest('section')!);
-    fireEvent.click(screen.getByRole('button', { name: /uninstall zombiebuddy/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /uninstall zombiebuddy/i }));
     await waitFor(() => expect(api.uninstall).toHaveBeenCalledOnce());
   });
 
@@ -105,9 +104,74 @@ describe('main window UI contract', () => {
     act(() => progress({ step: 4, message: 'Copying library…' }));
     expect(screen.getByText('Copying library… (50%)')).toBeTruthy();
     expect(screen.getAllByRole('button', { name: /working/i }).every(button => button.hasAttribute('disabled'))).toBe(true);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(api.closeWindow).not.toHaveBeenCalled();
     await act(async () => finish('Installation completed.'));
     expect(await screen.findByText('Installation completed.')).toBeTruthy();
     expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('navigates branch actions with arrows and dismisses the menu before closing the window', async () => {
+    const { App } = await import('../../src/main');
+    render(createElement(App));
+    await screen.findByRole('button', { name: /install · 2.3.4/i });
+    const trigger = screen.getByRole('button', { name: 'Stable release actions' });
+    act(() => trigger.focus());
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    const workshop = screen.getByRole('menuitem', { name: /open workshop/i });
+    const uninstall = screen.getByRole('menuitem', { name: /uninstall/i });
+    expect(document.activeElement).toBe(workshop);
+    fireEvent.keyDown(workshop, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(uninstall);
+    fireEvent.keyDown(uninstall, { key: 'Home' });
+    expect(document.activeElement).toBe(workshop);
+    fireEvent.keyDown(workshop, { key: 'End' });
+    expect(document.activeElement).toBe(uninstall);
+    fireEvent.keyDown(uninstall, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(workshop);
+    fireEvent.keyDown(workshop, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(api.closeWindow).not.toHaveBeenCalled();
+    fireEvent.keyDown(trigger, { key: 'Escape', repeat: true });
+    expect(api.closeWindow).not.toHaveBeenCalled();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(api.closeWindow).toHaveBeenCalledOnce();
+    expect(api.install).not.toHaveBeenCalled();
+    expect(api.uninstall).not.toHaveBeenCalled();
+    expect(api.openWorkshop).not.toHaveBeenCalled();
+  });
+
+  it('skips disabled actions and does not open a menu merely because its trigger receives focus', async () => {
+    api.discover.mockResolvedValue({ ...branches(), files: [] });
+    const { App } = await import('../../src/main');
+    render(createElement(App));
+    await screen.findByRole('button', { name: /install · 2.3.4/i });
+    vi.useFakeTimers();
+    const trigger = screen.getByRole('button', { name: 'Stable release actions' });
+    act(() => trigger.focus());
+    act(() => vi.advanceTimersByTime(600));
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+    const workshop = screen.getByRole('menuitem', { name: /open workshop/i });
+    expect(document.activeElement).toBe(workshop);
+    fireEvent.keyDown(workshop, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(workshop);
+  });
+
+  it('cancels pending hover timers when a menu is dismissed with Escape', async () => {
+    const { App } = await import('../../src/main');
+    render(createElement(App));
+    await screen.findByRole('button', { name: /install · 2.3.4/i });
+    vi.useFakeTimers();
+    const trigger = screen.getByRole('button', { name: 'Stable release actions' });
+    fireEvent.mouseEnter(trigger.closest('section')!);
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: /open workshop/i }), { key: 'Escape' });
+    act(() => vi.advanceTimersByTime(700));
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(api.closeWindow).not.toHaveBeenCalled();
   });
 
   it('shows terminal install errors even after progress has been received', async () => {
