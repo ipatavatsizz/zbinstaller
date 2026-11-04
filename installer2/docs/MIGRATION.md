@@ -152,7 +152,7 @@ Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde 
 
 ### 33. İmza politikası (yayın kararı)
 
-- [ ] Doğrudan uygulamalar için Windows imzası ve macOS imza/notarization gereksinimini kararlaştırıp kaydetmek. Gerekliyse sertifika/kimlik/secret'ları CI'a sağlamak ve imzalı uygulamaları doğrulamak; gerekmiyorsa imzasız yayın kararını ve platform uyarılarını kabul kaydına yazmak. Bu bir ürün/yayın kararıdır; Go özellik eşliği için zorunlu değildir. Secret değerleri bu belgeye yazılmaz.
+- [x] Deneysel Rust adaylarında mevcut Go yayınlarıyla aynı imzasız dağıtımı sürdürmek ve Windows SmartScreen/macOS Gatekeeper uyarılarını kaydetmek. [İmza ve aday politikası](RELEASE.md): Windows Authenticode ve macOS notarization bu deneysel kapsamda uygulanmaz; üç dosya için SHA-256 listesi üretilir. Mevcut Windows EXE imza durumu `NotSigned`; önceki Go workflow'unda da imza adımı yoktur. Bu kayıt imzalı yayın kabulü veya herkese açık yayın kararı değildir.
 
 ### 34. Ana yayın akışını değiştirme
 
