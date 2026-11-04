@@ -707,7 +707,7 @@
         const downloads = platform.includes("win")
             ? ["ZombieBuddyInstaller-windows-amd64.exe", "Windows"]
             : platform.includes("mac")
-                ? ["ZombieBuddyInstaller-macos-arm64", "macOS"]
+                ? ["ZombieBuddyInstaller-macos-arm64.zip", "macOS"]
                 : platform.includes("linux")
                     ? ["ZombieBuddyInstaller-linux-amd64", "Linux"]
                     : ["", "Unknown platform"];
@@ -730,7 +730,10 @@
             .then((release) => {
                 const version = release.tag_name || "latest";
                 setDownloadLabel(version);
-                const asset = release.assets?.find((item) => item.name === downloads[0]);
+                const asset = release.assets?.find((item) => item.name === downloads[0])
+                    || (platformName === "macOS"
+                        ? release.assets?.find((item) => item.name === "ZombieBuddyInstaller-macos-arm64")
+                        : undefined);
                 if (!asset) {
                     throw new Error(`Release asset not found for ${platformName}`);
                 }

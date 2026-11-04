@@ -1,18 +1,18 @@
-name: Build and publish release
+name: Build Rust application release candidate
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and publish"
+        description: 'Existing Rust application version tag to build as a draft'
         required: true
-        default: "v26.11.3"
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release-tag:
@@ -22,96 +22,74 @@ jobs:
     steps:
       - id: tag
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo 'Expected a v<version> tag'; exit 1; }
+          echo "value=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
-  build:
+  verify-and-build:
     needs: release-tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            output: ZombieBuddyInstaller-windows-amd64.exe
-            ldflags: "-s -w -H=windowsgui"
-            setup: ""
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            output: ZombieBuddyInstaller-linux-amd64
-            ldflags: "-s -w"
-            setup: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            output: ZombieBuddyInstaller-macos-arm64
-            ldflags: "-s -w"
-            setup: ""
-    runs-on: ${{ matrix.os }}
+    uses: ./.github/workflows/installer2.yml
+    with:
+      ref: ${{ needs.release-tag.outputs.value }}
+
+  draft:
+    needs: [release-tag, verify-and-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.release-tag.outputs.value }}
-
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-node@v4
         with:
-          go-version: "1.25.5"
-          cache-dependency-path: installer/go.sum
-
-      - name: Install Linux GUI dependencies
-        if: runner.os == 'Linux'
-        run: ${{ matrix.setup }}
-
-      - name: Build installer
-        working-directory: installer
-        shell: bash
+          node-version: '22'
+      - name: Match tag to application version
         env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "1"
-        run: go build -trimpath -ldflags "${{ matrix.ldflags }}" -o "${{ matrix.output }}" .
-
-      - name: Run tests
-        if: runner.os == 'Windows'
-        working-directory: installer
-        run: go test ./...
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: ${{ matrix.output }}
-          path: installer/${{ matrix.output }}
-          if-no-files-found: error
-
-  publish:
-    needs:
-      - release-tag
-      - build
-    runs-on: ubuntu-latest
-    steps:
+          RELEASE_TAG: ${{ needs.release-tag.outputs.value }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const config = JSON.parse(fs.readFileSync("installer2/src-tauri/tauri.conf.json", "utf8"));
+            const tag = process.env.RELEASE_TAG;
+            const base = `v${config.version}`;
+            if (tag !== base && !tag.startsWith(`${base}-`)) throw new Error(`Tag ${tag} does not match application ${config.version}`);
+          '
       - uses: actions/download-artifact@v5
         with:
+          name: installer2-windows-amd64
           path: release-assets
-          merge-multiple: true
-
-      - name: Publish GitHub release
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-linux-amd64
+          path: release-assets
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-macos-arm64
+          path: release-assets
+      - name: Validate application formats and create SHA-256 list
+        run: node installer2/scripts/package-candidate.mjs release-assets
+      - name: Create Rust application draft
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release-tag.outputs.value }}
           RELEASE_NOTES: |
-            ## Experimental release
+            Rust/Tauri application candidate. Go is not required to build or run it.
 
-            This release includes cross-platform installer support. Linux and macOS support is experimental and may not work on every distribution or system.
+            Download and run the application directly; no setup installer.
+            Windows: EXE (WebView2 required).
+            Linux: executable (chmod +x; WebKitGTK 4.1 required).
+            macOS: unzip and open the APP.
 
-            Please report platform-specific issues with your operating system and distribution details.
+            Linux/macOS support is experimental. Applications are unsigned;
+            Windows SmartScreen/macOS Gatekeeper warnings may appear.
+            SHA256SUMS contains SHA-256 hashes of the three application files.
+            Real Steam/game and manual platform acceptance are tracked in installer2/docs/MIGRATION.md.
+        shell: bash
         run: |
           gh release create "$RELEASE_TAG" release-assets/* \
-            --repo "$GITHUB_REPOSITORY" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "ZombieBuddy Installer ${RELEASE_TAG#v}" \
-            --latest \
-            --notes "$RELEASE_NOTES"
+            --draft --prerelease --notes "$RELEASE_NOTES"

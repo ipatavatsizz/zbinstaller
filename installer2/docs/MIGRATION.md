@@ -8,7 +8,7 @@ Eski Go uygulamasının Windows, Linux ve macOS için gerçekleştirdiği kurulu
 
 Dağıtım kararı (2026-11-04): Bu araç kendisini sisteme kurmaz. Kullanıcı Windows EXE'sini, Linux çalıştırılabilir dosyasını veya ZIP içindeki macOS APP'ini indirip açar; işi bitince aracı silebilir. Kurulum/kaldırma eylemleri ZombieBuddy moduna aittir. Araç silindiğinde mod, oyun yedekleri ve kalıcı diagnostics geçmişi otomatik silinmez. Setup kurucusu ve sistem paket yöneticisi kurulumu yayın şartı değildir. Önceki NSIS/DEB/AppImage/DMG yönlendirmeleri bu kararla kaldırıldı; geçmiş CI kanıtları aşağıda yalnızca tarihsel kayıt olarak korunur.
 
-Yerel doğrulama (2026-11-04): Güncel ayarlarla `npm run tauri build` yalnızca `target/release/ZombieBuddyInstaller-26.11.3.exe` uygulamasını üretti; setup adımı çalışmadı. Bu EXE üzerinde `npm run test:native:windows` geçti (açılış, görünüm, klavye, diagnostics yeniden açılışı ve çıkış). 24 UI testi, 15 çekirdek testi, Rust biçim kontrolü ve Clippy geçti; gerçek Steam süreç testi varsayılan olarak atlandı. Linux/macOS dağıtım değişiklikleri bu Windows ortamında native doğrulanmadı; uzak CI henüz yeniden çalıştırılmadı.
+Yerel doğrulama (2026-11-04): `npm run tauri build` doğrudan `target/release/ZombieBuddyInstaller-26.11.3.exe` uygulamasını üretti; setup adımı yoktur. Yeni EXE üzerinde `npm run test:native:windows` geçti (açılış, görünüm, klavye, diagnostics yeniden açılışı ve çıkış). 24 UI testi, 8 yayın/link testi, workspace Rust testleri, biçim kontrolü ve Clippy geçti. Gerçek Steam/game dosya yazma testleri çalıştırılmadı. Windows süreç/başlatıcı senaryoları 31–32'de, uzak CI kanıtı 30 ve 34'te izlenir.
 
 ## Tamamlanan geliştirme işleri
 
@@ -156,9 +156,10 @@ Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde 
 
 ### 34. Ana yayın akışını değiştirme
 
-- [ ] 30–33 tamamlandıktan sonra kabul edilen commit'i ve doğrudan uygulama dosyalarını kaydetmek; açık kabul hatası kalmadığını doğrulamak.
-- [ ] [Ana `v*` etiket/release workflow'unu](../../.github/workflows/release.yml) kabul edilen Installer 2 EXE/Linux dosyası/APP ZIP'ini üretecek şekilde değiştirmek. Bu adım henüz uygulanmadı; Go yayın akışı etkin.
-- [ ] Önce taslak release varlıklarını ve sürüm adlarını doğrulamak, ardından Installer 2 yayınını yayımlamak.
+- [ ] Windows izole kabulü ve Linux/macOS deneysel native UI suite'leri başarılı aday commit'ini, workflow'u ve doğrudan uygulama dosyalarını kaydetmek; indirilen Windows EXE'sini native UI suite'inden geçirmek.
+- [x] [Ana `v*` etiket/release workflow'unu](../../.github/workflows/release.yml) Rust [native build workflow'unu](../../.github/workflows/installer2.yml) yeniden kullanacak şekilde değiştirmek. Go derlemesi kaldırıldı; çıktı Windows EXE/Linux dosyası/APP ZIP ve `SHA256SUMS` içeren taslak prerelease'dir. Actionlint geçti. README artık Rust geliştirme/dağıtımını esas alır. macOS site indirmesi APP ZIP'ini seçer ve önceki Go dosya adıyla uyumludur; sekiz paket/link regresyon testi geçti.
+- [ ] Taslak release'in üç uygulama dosyası, SHA-256 listesi, aday commit'i ve sürüm adlarını doğrulamak.
+- [ ] Gerçek oyun/kullanıcı kabulü sonrasında Installer 2 taslağını herkese açık yayımlamak. Bu çalışma otomatik public yayın yapmaz.
 
 ## Kabul sonuç kaydı
 
@@ -173,7 +174,7 @@ Windows'ta branch'ten bağımsız Steam süreç testi geçti (31. madde). Henüz
 | macOS arm64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
 | macOS arm64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
 
-CI kanıtları: `1a46881bceb44d005c3583bb3021f62b14c0ac25` commit'inin doğrudan uygulama indirmeleri için üç başarılı native CI işi ve Windows indirilen EXE kabulü tarihsel kayıttır. Yeni Linux/macOS native UI denemeleri aynı commit'in Actions sonuçlarıyla eklenecek; yayın için exact Linux/macOS artifact açılışı ve gerçek Steam/oyun kabulü yine gereklidir. İmza politikası: kararlaştırılmadı. Yayın için kabul edilen commit: henüz yok.
+CI kanıtları: `93501839b3e0f6e77d40586786ac1c4e74f056ef` Linux/macOS deneysel native UI suite'leri ve üç native build için başarılıdır (30. madde). Yeni Windows süreç/başlatıcı ve Rust yayın akışı adayının CI kanıtı 34. maddede kaydedilir. Gerçek Steam/oyun kabulü ayrı bekler. İmza politikası: mevcut Go dağıtımı gibi imzasız deneysel adaylar; [politika](RELEASE.md). Herkese açık yayın için kabul edilen commit henüz yok.
 
 Gerçek Steam/oyun dosyaları otomatik testlerle değiştirilmez. Üç hedefin dosya düzenlerinin Windows üzerinde fixture testlerinden geçmesi, Linux/macOS üzerinde native doğrulama yerine geçmez.
 

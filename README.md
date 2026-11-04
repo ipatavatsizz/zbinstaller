@@ -4,148 +4,78 @@
 
 <h1 align="center">ZombieBuddy Installer</h1>
 
-Cross-platform desktop installer for the ZombieBuddy mod for **Project Zomboid**. The installer is built with [Fyne](https://fyne.io/) and integrates with Steam to discover the game installation, manage Workshop branches, and apply the required launch configuration.
+Desktop installer for the ZombieBuddy mod for **Project Zomboid**, implemented with Rust, Tauri and a React/TypeScript UI. Go is not required to build or run the Rust application. Linux and Apple Silicon macOS support is experimental.
 
-This project is built on top of the original work by [zed-0xff](https://github.com/zed-0xff).
+This project builds on the original work by [zed-0xff](https://github.com/zed-0xff).
 
 ## Features
 
-- Detects Steam and Project Zomboid installations automatically.
-- Supports the **LTS** and **Beta** ZombieBuddy Workshop branches.
-- Opens the selected branch's Workshop page in Steam when a subscription is required.
-- Polls Steam Workshop status and waits for the selected item to finish downloading.
-- Closes Steam before changing its launch configuration and starts it again after installation.
-- Installs the native ZombieBuddy library and `ZombieBuddy.jar`.
-- Patches:
-  - Steam launch options.
-  - `ProjectZomboid64.json`.
-  - The Project Zomboid launcher script or batch file.
-- Creates a rollback snapshot before modifying files.
-- Restores the previous files automatically when installation fails.
-- Includes a diagnostics window with installation status, paths, Steam libraries, and an installation log.
-- Provides a context menu for opening each branch's Workshop page.
-- Uses atomic file replacement to reduce the risk of partially written configuration files.
+- Discovers Steam, additional libraries, Project Zomboid and both LTS/Beta Workshop branches.
+- Opens the selected Workshop page and waits for completed payloads, with cancellation.
+- Gracefully closes Steam before changing launch settings, then restarts it.
+- Installs the platform native library and `ZombieBuddy.jar`; patches Steam options and JSON/BAT/shell launchers.
+- Preserves original backups and unrelated user settings; applies atomic writes with rollback and crash recovery.
+- Supports reinstall, branch changes and uninstall, with cross-process operation locks.
+- Provides diagnostics, persistent logs, progress, keyboard navigation and branch menus.
 
-## Supported platforms
+## Download and run
 
-The installer contains platform-specific support for:
+The tool runs directly and does not install itself:
 
-- Windows
-- Linux
-- macOS (Apple Silicon)
+| Platform | Application | Requirement |
+| --- | --- | --- |
+| Windows x64 | `ZombieBuddyInstaller-windows-amd64.exe` | WebView2 runtime |
+| Linux x64 (experimental) | `ZombieBuddyInstaller-linux-amd64` | `chmod +x`; WebKitGTK 4.1 and desktop dependencies |
+| macOS arm64 (experimental) | `ZombieBuddyInstaller-macos-arm64.zip` | Unzip and open the APP |
 
-Steam discovery includes common installation locations on each platform, including standard Linux, Flatpak, Snap, and macOS locations where applicable.
+Applications are unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. New Rust candidates are prepared as draft prereleases. Existing public releases may still contain the legacy Go application until a Rust candidate is published. See the [release policy](installer2/docs/RELEASE.md).
 
-The native ZombieBuddy libraries must be available in the selected Workshop branch. The installer does not build or create those libraries.
+Install Steam and Project Zomboid, close the game, run the tool and select LTS or Beta. Subscribe through the selected Workshop page if needed and wait for Steam's download. The native library and JAR must be supplied by Workshop; this tool does not create them.
 
-## Installation
+Delete the downloaded tool when finished. Deleting it does not remove the mod, game backups or diagnostic history; use the mod uninstall action when needed.
 
-1. Install Steam and Project Zomboid.
-2. Download the installer binary for your platform.
-3. Run the installer.
-4. Select **LTS** or **Beta**.
-5. If necessary, subscribe to the selected Workshop branch in Steam.
-6. Wait while Steam finishes downloading the Workshop item.
-7. Start the installation.
+## Build and verify
 
-The downloaded tool runs directly; it does not install itself or require a setup wizard. Delete the tool when you no longer need it. Its install/uninstall actions manage the ZombieBuddy mod; deleting the tool does not remove the mod, game backups or diagnostic history.
-
-The installer may close Steam while it updates launch settings. Steam is started again after a successful installation.
-
-Before installing, close Project Zomboid and any other process that may be using its files. The installer creates a rollback snapshot, but keeping a personal backup of important files is still recommended.
-
-## Building from source
-
-The new Tauri + Rust implementation is in [`installer2/`](./installer2). Windows, Linux and macOS installation logic is implemented with fixture tests, persistent backups/recovery and process locks. See its [development guide](./installer2/README.md) and numbered [migration checklist](./installer2/docs/MIGRATION.md). The [Installer 2 workflow](./.github/workflows/installer2.yml) verifies and builds directly runnable applications: Windows EXE, Linux executable and macOS APP in a ZIP. Real Steam/game and native platform acceptance are required before replacing the Go release workflow below.
-
-The Go module is located in [`installer/`](./installer).
-
-Requirements:
-
-- Go `1.25.5` or compatible
-- A C toolchain and the platform dependencies required by Fyne/GLFW
-- Ruby and Rake for the provided build tasks
-
-From the repository root:
+The current application is in [installer2/](installer2/). Requirements: Node.js 22.12+, stable Rust and the platform's [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/). Windows needs Visual Studio C++ Build Tools and WebView2. Linux/macOS applications are built on their native GitHub Actions runners.
 
 ```powershell
-cd installer
-go run .
+cd installer2
+npm ci
+npm run build
+npm run test:ui
+npm run test:release
+cargo fmt --all -- --check
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+npm run tauri build
 ```
 
-Run the test suite:
+On Windows, the executable is `installer2/target/release/ZombieBuddyInstaller-26.11.3.exe`. Run `npm run test:native:windows` inside the application directory to validate the real release WebView2 window. The [development guide](installer2/README.md) lists all native output paths and commands.
 
-```powershell
-cd installer
-go test ./...
-```
+Normal tests write only to temporary directories. Windows tests execute patched BAT launchers in real `cmd.exe` processes and exercise installation orchestration with an isolated child process. These tests do not modify the developer's Steam/game installation or claim real game/mod acceptance. See the [test plan](installer2/tests/README.md) and [migration results](installer2/docs/MIGRATION.md).
 
-Run static analysis:
+## Releases
 
-```powershell
-cd installer
-go vet ./...
-```
+The [native workflow](.github/workflows/installer2.yml) verifies frontend/Rust tests, lint, three native builds and experimental Linux/macOS UI acceptance. It uploads three directly runnable applications. A manual run can prepare an `installer2-v...` draft candidate.
 
-## Build commands
-
-The `Rakefile` provides these tasks from the `installer` directory:
-
-```text
-rake                Build for the current host and run tests
-rake build          Build for the current host
-rake build_windows  Build ZombieBuddyInstaller.exe
-rake build_linux    Build ZombieBuddyInstaller-linux-amd64
-rake build_macos    Build ZombieBuddyInstaller-macos-arm64
-rake build_all      Build Windows, Linux, and macOS artifacts
-rake test           Run go test ./...
-```
-
-The output binaries are written to the `installer` directory.
-
-## Automated releases
-
-Pushing a date-based version tag such as `v26.11.3` starts the GitHub Actions release workflow. It builds native Windows amd64, Linux amd64, and macOS arm64 artifacts on the current GitHub-hosted `latest` runners and publishes them to one GitHub Release.
-
-Linux and macOS builds are experimental and may not work on every distribution or system. The macOS release targets Apple Silicon (arm64); Intel macOS is not included. A local Linux or macOS machine is not required for the release build.
-
-The workflow can also be started manually for an existing tag from the **Actions** tab. This is useful for tags created before the workflow was added.
+The [version-tag workflow](.github/workflows/release.yml) uses the same Rust workflow and creates a draft prerelease containing the three applications and `SHA256SUMS`. It does not build Go or publish the draft automatically. Use a new tag whose commit contains the Rust application. Linux/macOS support remains experimental; Intel macOS is not included.
 
 ## Project layout
 
-```text
-.
-├── index.html                    Project landing page
-└── installer/
-    ├── installer.go              Fyne UI and user interaction
-    ├── install.go                Installation and rollback workflow
-    ├── steam.go                  Shared Steam and Workshop logic
-    ├── steam_windows.go          Windows Steam integration
-    ├── steam_other.go            Linux/macOS Steam integration
-    ├── patchers.go               Shared configuration patchers
-    ├── patchers_windows.go       Windows launcher patching
-    ├── patchers_unix.go          Linux/macOS launcher patching
-    └── *_test.go                 Unit and integration-style tests
-```
+- [installer2/crates/installer-core/](installer2/crates/installer-core/): Rust discovery, patching, process control, transactions and recovery.
+- [installer2/src-tauri/](installer2/src-tauri/): native application and narrow Tauri commands.
+- [installer2/src/](installer2/src/): React/TypeScript interface.
+- [installer2/tests/](installer2/tests/): fixtures, process/launcher scenarios, UI and release tests.
+- [installer/](installer/): legacy Go/Fyne source, kept as a reference and fallback. Its old Go/Rake build commands are not required by the Rust application.
+- [index.html](index.html): project landing page.
 
 ## Troubleshooting
 
-Open the installer's diagnostics window to inspect detected paths, Steam libraries, launcher files, and the installation log.
+Open diagnostics with F5 or the visible diagnostics button to inspect paths, Steam libraries, branch state and persistent logs. Ensure Steam has run at least once, the game is installed through Steam and the selected Workshop payload has finished downloading.
 
-If Steam or Project Zomboid is not detected:
+Close Project Zomboid before installing or uninstalling. If Steam's game entry lacks `LaunchOptions`, set launch options through Steam first, matching the original installer's requirement. Unsupported or ambiguous configuration is reported before writes.
 
-- Make sure Steam is installed and has been launched at least once.
-- Make sure Project Zomboid is installed through Steam.
-- Check that the selected Workshop branch has finished downloading.
-- On Linux or macOS, verify that the Steam and Project Zomboid files are accessible to the current user.
-
-If the native library is missing, wait for the Workshop download to complete and try again. The installer requires the platform-specific native library and `ZombieBuddy.jar` before it starts modifying the game installation.
-
-## Development notes
-
-Tests are kept beside the Go source files so they can directly exercise package-private helpers with the standard `go test ./...` workflow.
-
-Cross-compiling the Fyne application may require a native C/GUI toolchain for the target platform. A successful build on Windows alone does not replace testing the Linux and macOS binaries on their respective systems.
+If recovery is incomplete, Steam remains stopped and the transaction journal is preserved. Retry the installer before launching Steam. A Steam restart failure after a completed installation is reported without undoing that installation.
 
 ## Links
 

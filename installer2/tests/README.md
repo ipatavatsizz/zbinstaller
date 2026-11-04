@@ -52,6 +52,7 @@ Dosya raporu veya durum isteğinden biri başarısız olduğunda diğerinin gös
 ```powershell
 npm run build
 npm run test:ui
+npm run test:release
 cargo fmt --all -- --check
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings

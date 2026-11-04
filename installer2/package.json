@@ -9,6 +9,7 @@
     "check": "tsc --noEmit",
     "test:ui": "vitest run --config vitest.config.ts",
     "test:ui:watch": "vitest --config vitest.config.ts",
+    "test:release": "node --test tests/release/*.test.mjs",
     "test:native:windows": "powershell -NoProfile -File tests/native/windows-ui.ps1",
     "test:native:unix": "wdio run tests/native/wdio.conf.js",
     "tauri": "tauri"

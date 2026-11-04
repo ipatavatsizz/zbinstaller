@@ -1,6 +1,6 @@
 # ZombieBuddy Installer 2
 
-Tauri 2 + Rust migration of the [Go installer](../installer/install.go). The Windows, Linux and macOS installation paths are implemented, with platform fixture coverage on Windows. Native Linux/macOS and real Steam/game acceptance are still required before replacing the Go release. See the numbered [migration checklist](docs/MIGRATION.md).
+Tauri 2 + Rust implementation of the [original Go installer](../installer/install.go). Rust contains the installer logic; the UI uses React/TypeScript in the native webview. Go is not required to build or run this application. Linux/macOS support is experimental; native CI includes real Tauri/WebKit UI tests. Real Steam/game acceptance is recorded separately in the [migration checklist](docs/MIGRATION.md).
 
 ## Develop
 
@@ -19,6 +19,7 @@ From the repository root in VS Code, use **F5 → Run ZombieBuddy Installer 2 (T
 ```powershell
 npm run build
 npm run test:ui
+npm run test:release
 cargo fmt --all -- --check
 cargo test --workspace --locked
 cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -37,7 +38,7 @@ This is a download-and-run tool: download the application, run it, then delete i
 
 Windows requires the WebView2 runtime. On Linux, make the downloaded file executable (`chmod +x ZombieBuddyInstaller-linux-amd64`); the system must provide WebKitGTK 4.1 and its desktop dependencies. On macOS, unzip and open the APP. No setup installer, package-manager package or disk image is produced. A build with `--target` inserts the target triple between `target/` and `release/` in the paths above.
 
-The [Installer 2 workflow](../.github/workflows/installer2.yml) checks each native target and uploads only these application downloads. Its manual action can create a draft prerelease with an `installer2-v...` candidate tag. The existing Go tag release workflow remains in place until native acceptance is recorded. Signing credentials are not supplied by this repository.
+The [native workflow](../.github/workflows/installer2.yml) checks each native target and uploads the application downloads and separate UI evidence. Its manual action can create a draft prerelease with an `installer2-v...` candidate tag. The [tag release workflow](../.github/workflows/release.yml) reuses the same Rust checks/builds and prepares a draft with three applications and `SHA256SUMS`. Signing credentials are not supplied; see the [experimental release policy](docs/RELEASE.md). Public publishing is separate from creating the draft.
 
 `npm run dev` alone serves the view; native commands require the Tauri app. See [test coverage](tests/README.md) and [architecture](docs/ARCHITECTURE.md).
 

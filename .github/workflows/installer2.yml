@@ -1,7 +1,15 @@
 name: Verify and build Installer 2 applications
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit or tag to verify and build'
+        type: string
+        required: false
+        default: ''
   push:
+    branches: ['**']
     paths: ['installer2/**', '.github/workflows/installer2.yml']
   pull_request:
     paths: ['installer2/**', '.github/workflows/installer2.yml']
@@ -43,6 +51,8 @@ jobs:
         working-directory: installer2
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -63,6 +73,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:ui
+      - run: npm run test:release
       - run: cargo fmt --all -- --check
       - run: cargo test --workspace --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -126,10 +137,24 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: actions/download-artifact@v5
         with:
+          name: installer2-windows-amd64
           path: candidate-assets
-          merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-linux-amd64
+          path: candidate-assets
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-macos-arm64
+          path: candidate-assets
+      - name: Validate application formats and create SHA-256 list
+        run: node installer2/scripts/package-candidate.mjs candidate-assets
       - name: Create candidate draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -140,4 +165,4 @@ jobs:
           gh release create "$CANDIDATE_TAG" candidate-assets/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Installer 2 candidate $CANDIDATE_TAG" --draft --prerelease \
-            --notes 'Download and run the application; no setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; system WebKitGTK 4.1 required). macOS: unzip and open the APP. See installer2/docs/MIGRATION.md. Unsigned; not a replacement for the Go release until native acceptance is recorded.'
+            --notes 'Rust/Tauri application candidate; no Go runtime or setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; WebKitGTK 4.1 required). macOS: unzip and open the APP. Linux/macOS support is experimental. Unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. SHA256SUMS lists the three application files. Real Steam/game acceptance is separate; see installer2/docs/MIGRATION.md and installer2/docs/RELEASE.md.'
