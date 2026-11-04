@@ -30,6 +30,10 @@ jobs:
 
   verify-and-build:
     needs: release-tag
+    # The reusable workflow also defines its opt-in draft job. GitHub validates
+    # its maximum permissions even when that job is skipped for workflow_call.
+    permissions:
+      contents: write
     uses: ./.github/workflows/installer2.yml
     with:
       ref: ${{ needs.release-tag.outputs.value }}
