@@ -46,6 +46,15 @@ fn dacl(path: &Path) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
 }
 
+// Windows may change the informational AUTO_INHERITED control bit when setting an ACL.
+// Compare the exact ordered binary ACEs and inheritance-protection bit, not that marker.
+fn dacl_semantics(sddl: &str) -> Result<String> {
+    let output = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; $sd=New-Object Security.AccessControl.RawSecurityDescriptor($env:ZB_ACL_SDDL); $acl=$sd.DiscretionaryAcl; $bytes=New-Object byte[] $acl.BinaryLength; $acl.GetBinaryForm($bytes,0); ([int]$sd.ControlFlags -band [int][Security.AccessControl.ControlFlags]::DiscretionaryAclProtected).ToString()+':'+[Convert]::ToBase64String($bytes)"])
+        .env("ZB_ACL_SDDL", sddl).output()?;
+    ensure!(output.status.success(), "Could not normalize DACL");
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
 fn restore_dacl(path: &Path, sddl: &str) -> Result<()> {
     let output = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; $acl=[IO.File]::GetAccessControl($env:ZB_ACL_TARGET); $acl.SetSecurityDescriptorSddlForm($env:ZB_ACL_SDDL,[Security.AccessControl.AccessControlSections]::Access); [IO.File]::SetAccessControl($env:ZB_ACL_TARGET,$acl)"])
         .env("ZB_ACL_TARGET", path).env("ZB_ACL_SDDL", sddl).output()?;
@@ -230,7 +239,8 @@ impl Recovery {
                 "Restored readonly permission differs"
             );
             ensure!(
-                Some(dacl(&entry.target)?) == entry.dacl,
+                dacl_semantics(&dacl(&entry.target)?)?
+                    == dacl_semantics(entry.dacl.as_deref().context("Missing original DACL")?)?,
                 "Restored DACL differs"
             );
         } else {
@@ -343,5 +353,22 @@ fn scoped_verification_rejects_unrelated_changes() -> Result<()> {
     verify_scoped_patch(original, &patched)?;
     let tampered = String::from_utf8(patched)?.replace("keep", "changed");
     assert!(verify_scoped_patch(original, tampered.as_bytes()).is_err());
+    Ok(())
+}
+
+#[test]
+fn dacl_comparison_preserves_rights_order_and_inheritance() -> Result<()> {
+    let inherited = "D:AI(A;ID;FR;;;WD)";
+    assert_eq!(
+        dacl_semantics(inherited)?,
+        dacl_semantics("D:(A;ID;FR;;;WD)")?
+    );
+    for different in ["D:P(A;ID;FR;;;WD)", "D:(A;;FR;;;WD)", "D:(A;ID;FA;;;WD)"] {
+        assert_ne!(dacl_semantics(inherited)?, dacl_semantics(different)?);
+    }
+    assert_ne!(
+        dacl_semantics("D:(A;;FR;;;WD)(D;;FW;;;WD)")?,
+        dacl_semantics("D:(D;;FW;;;WD)(A;;FR;;;WD)")?
+    );
     Ok(())
 }
