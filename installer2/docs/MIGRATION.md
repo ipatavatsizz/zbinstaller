@@ -84,7 +84,7 @@ Bu düzeltmeler sonrasında `npm run test:ui`: 24 test geçti; `npm run build`: 
 
 ## Kalan işler (sırayla)
 
-**Geçiş henüz yayın kabulünü tamamlamadı.** Aşağıdaki işler sırayla tamamlanır; bir sonucun yokluğu başarı sayılmaz. Gerçek kurulum testleri geliştiricinin mevcut oyunu üzerinde otomatik çalıştırılmaz; ayrı ve yedeklenmiş bir Steam/oyun test ortamı gerekir.
+**2026-11-05 güncel kapsam:** gerekli Steam config değişiklikleri belirli hedefler ve bağımsız geri yüklenebilir yedeklerle izinlidir. Gerçek oyun dosyaları/kurulum/açılış ve ayrı manuel masaüstü kabulü bu görev kapsamı dışındadır; çalıştırılmadı, başarılı sayılmaz ve görev engeli değildir. Linux/macOS için native GitHub Actions kabul edilen ortamdır. Aşağıdaki tarihsel sonuçlar ait oldukları commit için korunur; yeni kontrolün yokluğu başarı sayılmaz. Public yayın ayrı karardır.
 
 2026-11-04 kapsamı: Windows'ta yapılabilen geliştirme ve izole süreç/başlatıcı kabul işleri sırayla tamamlanır; Linux/macOS deneysel destek olarak kalır. Linux/macOS manuel masaüstü/oyun kabulleri Windows işlerini engellemez ve geçilmiş sayılmaz. 1–29'daki Go işlev eşliği uygulanmıştır; kalan kutular yeni bir özellik listesi değil, kabul ve yayın işidir.
 
@@ -93,13 +93,13 @@ Bu düzeltmeler sonrasında `npm run test:ui`: 24 test geçti; `npm run build`: 
 - [x] [Installer 2 workflow'unu](../../.github/workflows/installer2.yml) içeren commit'i GitHub'a göndermek ve aynı commit için Windows x64, Linux x64 ve Apple Silicon macOS CI işlerinin başarıyla bittiğini kaydetmek. 2026-11-04: `migration/complete-go-parity` dalındaki `b649174f625f5e830c34f955c418e00a0933a2c0` için [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41798650750) başarılı. Bu kanıt kayıtlı commit'e aittir; çalışma dizinindeki commit edilmemiş değişiklikleri kapsamaz.
 - [x] Güncel doğrudan uygulama dağıtımı ayarlarıyla aynı commit için üç CI işini doğrulamak; Windows EXE, Linux çalıştırılabilir dosyası ve APP ZIP artifact'larını kaydetmek. 2026-11-04: `1a46881bceb44d005c3583bb3021f62b14c0ac25`, [CI çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095) başarılı; iş kanıtları aşağıda. Setup paketi üretilmedi.
 - [x] Windows x64'te doğrudan çalıştırılabilir EXE'yi setup olmadan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. 2026-11-04: yerel release EXE ve CI'dan indirilen `ZombieBuddyInstaller-windows-amd64.exe` üzerinde [native UI kabulü](../tests/README.md#windows-native-ui-kabulü) geçti. Pencere 680 × 540; layout, tuşlar, diagnostics yeniden açma ve uygulama çıkışı doğrulandı. Windows WebView2 runtime gereklidir.
-- [ ] Linux'ta indirilen dosyaya çalıştırma izni verip doğrudan açmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. Sistem WebKitGTK 4.1 ve masaüstü bağımlılıkları gereklidir; bu masaüstü kabulü deneysel CI native testinden ayrıdır.
-- [ ] Apple Silicon macOS'ta indirilen ZIP'i açıp APP'i çalıştırmak; ana görünüm, diagnostics, klavye ve çıkışı doğrulamak. Bu masaüstü kabulü deneysel CI native testinden ayrıdır.
+- [ ] Linux x64 native Actions runner'ında WebDriver içermeyen production executable ile görünür pencere startup smoke ve mevcut WDIO suite'ini aynı kaynak commit'inde doğrulamak. Production smoke henüz uygulanmadı/çalıştırılmadı. Ayrı manuel masaüstü kabulü kapsam dışıdır.
+- [ ] Apple Silicon macOS native Actions runner'ında ZIP'ten çıkarılan production APP ile görünür pencere startup smoke ve mevcut WDIO suite'ini aynı kaynak commit'inde doğrulamak. Production smoke henüz uygulanmadı/çalıştırılmadı. Ayrı manuel masaüstü kabulü kapsam dışıdır.
 - [x] **Deneysel cross-platform kontrolü:** Linux/macOS native runner'larında test-only WDIO feature ile Tauri/WebKit uygulamasını açmak; ana layout ve branch menülerini, diagnostics ikinci penceresini, kapanışta ana pencere odağını ve diagnostics tekrar açılışını doğrulamak. Test-only yetkiler release build'e alınmaz; workflow logları ve screenshot artifact'ları yükler. Windows'ta aynı suite yerel test uygulamasında geçti. 2026-11-04, commit `93501839b3e0f6e77d40586786ac1c4e74f056ef`: [üç platform Actions çalışması](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41897827574) başarılı; Linux [native UI işi](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41897827574/job/126811984090) ve Apple Silicon macOS [native UI işi](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41897827574/job/126811984055) geçti, screenshot artifact'ları yüklendi.
 
 30. görevde Linux ve Apple Silicon macOS native UI testi ile Actions adımları eklendi ve `93501839b3e0f6e77d40586786ac1c4e74f056ef` commit'inde başarıyla doğrulandı. Test uygulaması indirilebilir release binary ile aynı uygulama kodudur; yalnızca embedded WebDriver capability/eklenti için ayrı feature/config ile derlenir. Yerel Windows WebView2'de suite de geçti.
 
-Deneysel tamamlanma ölçütü: aynı commit'in üç başarılı CI işi; Linux ve macOS native UI suite sonucu başarılı ve screenshot artifact'ları yüklü. Bu, test konfigürasyonlu uygulama derlemesini native açar; indirilebilir release dosyasının birebir açılışı veya Go release akışını değiştirme onayı değildir. Yayın tamamlanması ayrıca Linux/macOS indirilen artifact'larının masaüstünde elle kabulini gerektirir. Aracın kendisinin sisteme kurulması veya setup testi gerekmez. Windows fixture testleri Linux/macOS native UI testi yerine geçmez.
+Deneysel tamamlanma ölçütü: aynı commit'in üç başarılı CI işi; Linux ve macOS native UI suite sonucu başarılı ve screenshot artifact'ları yüklü. Bu, test konfigürasyonlu uygulama derlemesini native açar; indirilebilir release dosyasının birebir açılışı veya Go release akışını değiştirme onayı değildir. Güncel görevde bu production açılış farkı native Actions runner'ında görünür pencere smoke ile kapatılacaktır; ayrı manuel masaüstü gerekmez. Aracın kendisinin sisteme kurulması veya setup testi gerekmez. Windows fixture testleri Linux/macOS native UI testi yerine geçmez.
 
 Güncel doğrudan uygulama CI kanıtları (`1a46881bceb44d005c3583bb3021f62b14c0ac25`, 2026-11-04; deneysel UI suite'in sonraki `93501839b3e0f6e77d40586786ac1c4e74f056ef` doğrulaması aşağıda kayıtlıdır):
 
@@ -109,7 +109,7 @@ Güncel doğrudan uygulama CI kanıtları (`1a46881bceb44d005c3583bb3021f62b14c0
 | Linux x64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095/job/126489362305) | `ZombieBuddyInstaller-linux-amd64` |
 | macOS arm64 | [Başarılı](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41804893095/job/126489362202) | `ZombieBuddyInstaller-macos-arm64.zip`; ZIP içinde `ZombieBuddy Installer.app` doğrulandı |
 
-Üç native işte build, UI testleri, Rust biçim kontrolü, workspace testleri ve Clippy geçti. `9350183` workflow run'ında Linux/macOS native UI suite'leri ve screenshot artifact yüklemeleri de başarılıdır. Windows artifact'ı indirildi ve gerçek WebView2 penceresinde açıldı; Linux/macOS indirilebilir release artifact'larının masaüstü açılışı yayın kabulü olarak ayrı bekliyor. Taslak release adımı çalıştırılmadı; bir sürüm yayımlanmadı.
+Üç native işte build, UI testleri, Rust biçim kontrolü, workspace testleri ve Clippy geçti. `9350183` workflow run'ında Linux/macOS native UI suite'leri ve screenshot artifact yüklemeleri de başarılıdır. Windows artifact'ı indirildi ve gerçek WebView2 penceresinde açıldı; Linux/macOS production artifact görünür pencere smoke'u güncel görevde native Actions üzerinde henüz bekliyor; ayrı manuel masaüstü kapsam dışıdır. Taslak release adımı çalıştırılmadı; bir sürüm yayımlanmadı.
 
 Önceki dağıtım ayarlarının tarihsel CI kanıtları (`b649174f625f5e830c34f955c418e00a0933a2c0`, 2026-11-04; güncel indirme biçimlerinin kabulü değildir):
 
@@ -127,30 +127,19 @@ Bu eski çalışmada frontend build, UI testleri, Rust biçim kontrolü, workspa
 
 Branch'ten bağımsız süreç kontrolü:
 
-- [x] **Windows'ta gerçek Steam'i üretim adaptörüyle normal kapatıp yeniden açan opt-in testi eklemek ve çalıştırmak.** 2026-11-04 tarihinde geçti; [native test](../crates/installer-core/src/platform.rs) normal test/CI koşusunda atlanır, hata durumunda yeniden açmayı dener. [Çalıştırma komutu ve kapsam](../tests/README.md#windows-native-steam-süreç-kabulü-opt-in). Kullanıcının açma/kapatma izni ve test dışı verilere dokunmama sınırı [proje kurallarına](../AGENTS.md) işlendi. Steam/oyun dosyalarına doğrudan yazılmadı.
+- [x] **Windows'ta gerçek Steam'i üretim adaptörüyle normal kapatıp yeniden açan opt-in testi eklemek ve çalıştırmak.** 2026-11-04 tarihinde geçti; [native test](../crates/installer-core/src/platform.rs) normal test/CI koşusunda atlanır, hata durumunda yeniden açmayı dener. [Çalıştırma komutu ve kapsam](../tests/README.md#windows-native-steam-süreç-kabulü-opt-in). O tarihteki kullanıcı açma/kapatma izni ve test dışı verilere dokunmama sınırı [proje kurallarına](../AGENTS.md) işlendi. Steam/oyun dosyalarına doğrudan yazılmadı.
 
 Güncel Windows tekrar kabulü (2026-11-04): gerçek Steam 3,16 saniyede normal kapandı, 1,06 saniyede yeniden başladı; test sonunda açık bırakıldı. Kurulum/yama/Workshop/indirme/ayar komutu çağrılmadı. Gerçek config flush ve gerçek oyun kabulü bu süreç testinin kapsamında değildir.
 
-Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
+Güncel görevde sonraki adım: Windows gerçek Steam config roundtrip'ini [bağımsız disk yedeği ve kurtarma kapısına](../tests/README.md#windows-steam-config-hedef-yedek-ve-kurtarma-kapısı) uyarlamak; yalnız tam adlı opt-in testi çalıştırıp patch/backup/idempotency, ilgisiz seçeneklerin korunması, cleanup ve Steam son durumunu kanıtlamak. Kod güvenliği uygulandı; 2026-11-05 tam adlı opt-in config testi geçti. İki config/backup hedefi, mevcut managed flag durumundan geçici scoped baseline ve zorunlu gerçek patch yazımı, normal kapanış 2,667 sn, scoped patch/ilk backup/idempotency, ilgisiz config byte'larının korunması ve orijinal varlık/içerik/SHA-256/readonly/DACL cleanup'ı restart öncesi doğrulandı; Steam 1,061 sn'de yeniden açıldı ve açık bırakıldı. Log: `installer2/target/acceptance/windows-steam-config-step2-final.log` (repo köküne göre); özel recovery manifest/kopyaları Steam dışındaki kalıcı dizinde tutulur, tam yol logdadır. Steam EXE FileVersion `11.15.70.27`, ProductVersion `01.00.00.02`. Kaynak HEAD `aed9b22` + henüz commit edilmemiş ikinci adım değişiklikleridir; `c7662e9` artifact'ı değildir. Dört regression testi, `cargo test -p installer-core --locked` (26 geçti, 3 opt-in atlandı), fmt ve workspace all-targets Clippy geçti. Frontend/production uygulama kodu değişmediğinden bu adımda frontend rebuild yapılmadı; Tester kabulü beklenir.
 
-- [ ] Workshop aboneliği/indirimi eksikken doğru branch sayfasının açıldığını, beklemenin indirme bitince devam ettiğini ve iptalin hiçbir kurulum yaması yazmadığını doğrulamak.
-- [ ] Steam normal kapanırken son kullanıcı ayarlarının diske yazıldığını ve bu ayarların kurulumdan sonra korunduğunu doğrulamak.
-- [ ] Steam kapanmıyorsa zaman aşımında hiçbir kurulum yaması yazılmadığını doğrulamak.
-- [ ] Başarılı işlemden ve tamamlanmış rollback'ten sonra Steam'in yeniden başladığını doğrulamak; rollback denemesi için yalnızca ayrı test ortamında kontrollü yazma hatası kullanmak.
-
-Tamamlanma ölçütü: üç platform × iki branch için süreç/indirme sonuçları, kullanılan Steam sürümü ve diagnostics çıktısı kaydedilmiş olmalı. Fixture testleri süreçlerin gerçek davranışını doğrulamaz.
+Gerçek Workshop abonelik/indirme branch matrisi, gerçek istemcide kapanmama zaman aşımı ve gerçek kurulum rollback denemeleri mevcut kapsam dışıdır, çalıştırılmadı. İzole süreç senaryolarının sonuçları bu gerçek davranışlara aktarılmaz; bunlar bu görev için zorunlu kabul hücresi değildir.
 
 ### 32. İki branch için gerçek oyun kabulü
 
-- [x] **Windows'ta yapılabilen başlatıcı süreç kabulü:** LTS ve Beta'yı izole oyun/Steam dizininde kurmak, yamalanan BAT'ı gerçek `cmd.exe` ile çalıştırmak, alt sürece iletilen JVM seçeneklerini ve payload dosyalarını doğrulamak; kullanıcı düzenlemeleri sonrasında tekrar kurulum, iki yönde branch değişimi ve kaldırma ardından yeniden başlatıcı çalıştırmak. Boşluk ve `&` içeren yollar, ilk backup'lar, ilgisiz oyun/ayarların korunması sınandı. [Windows başlatıcı testi](../tests/tests/integration/windows_launcher.rs) ve tüm workspace testleri/Clippy Windows'ta geçti. Başlatılan alt süreç test probe'udur; gerçek JVM, Project Zomboid veya ZombieBuddy oyun içi kodu çalıştırılmaz; aşağıdaki gerçek oyun kutuları bu kanıtla işaretlenmez.
+- [x] **Windows'ta yapılabilen başlatıcı süreç kabulü:** LTS ve Beta'yı izole oyun/Steam dizininde kurmak, yamalanan BAT'ı gerçek `cmd.exe` ile çalıştırmak, alt sürece iletilen JVM seçeneklerini ve payload dosyalarını doğrulamak; kullanıcı düzenlemeleri sonrasında tekrar kurulum, iki yönde branch değişimi ve kaldırma ardından yeniden başlatıcı çalıştırmak. Boşluk ve `&` içeren yollar, ilk backup'lar, ilgisiz oyun/ayarların korunması sınandı. [Windows başlatıcı testi](../tests/tests/integration/windows_launcher.rs) ve tüm workspace testleri/Clippy Windows'ta geçti. Başlatılan alt süreç test probe'udur; gerçek JVM, Project Zomboid veya ZombieBuddy oyun içi kodu çalıştırılmaz; gerçek oyun kabulü bu kanıtla başarılı sayılmaz.
 
-Her platformdaki ayrı test ortamında, önce LTS, ardından Beta için:
-
-- [ ] Kurulumdan sonra doğru platform payload'ının ve mod bayrağının bulunduğunu, oyunun açıldığını ve ZombieBuddy'nin yüklendiğini doğrulamak.
-- [ ] Tekrar kurulumdan sonra bayrakların çoğalmadığını, ilk `.backup` içeriklerinin değişmediğini ve oyunun yeniden açıldığını doğrulamak.
-- [ ] Kurulumdan sonra eklenen ilgisiz kullanıcı seçeneklerinin kaldırma işleminde korunduğunu, mod payload/bayraklarının temizlendiğini ve oyunun modsuz açıldığını doğrulamak.
-
-Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde kurulum, tekrar kurulum ve kaldırma sonucu ile oyun açılış kanıtı bulunmalı.
+Gerçek oyun kurulum/tekrar kurulum/kaldırma ve oyun/mod açılışının üç platform × iki branch matrisi **kapsam dışı, çalıştırılmadı** olarak korunur. Bu görevde oyun dosyalarına dokunulmaz ve oyun açılmaz. Bu sonuçların yokluğu görevin engeli değildir; izole başlatıcı/fixture başarısı gerçek oyun başarısı sayılmaz.
 
 ### 33. İmza politikası (yayın kararı)
 
@@ -161,9 +150,9 @@ Tamamlanma ölçütü: aşağıdaki altı ortam/branch satırının her birinde 
 - [x] Windows izole kabulü ve Linux/macOS deneysel native UI suite'leri başarılı aday commit'ini, workflow'u ve doğrudan uygulama dosyalarını kaydetmek; indirilen Windows EXE'sini native UI suite'inden geçirmek. `c7662e9e9489a669381ed9315b2f39f0f2fe5612`, [Rust etiket workflow'u](https://github.com/ipatavatsizz/zbinstaller/actions/runs/41903125865) başarılı. Windows x64/Linux x64/macOS arm64 test/build/lint ve Linux/macOS native UI işleri geçti. Aynı run'dan indirilen Windows EXE'si yerel native UI kabulünden geçti (pencere/odak, 24 DOM testinden ayrı gerçek klavye kontrolleri, diagnostics yeniden açma, çıkış).
 - [x] [Ana `v*` etiket/release workflow'unu](../../.github/workflows/release.yml) Rust [native build workflow'unu](../../.github/workflows/installer2.yml) yeniden kullanacak şekilde değiştirmek. Go derlemesi kaldırıldı; çıktı Windows EXE/Linux dosyası/APP ZIP ve `SHA256SUMS` içeren taslak prerelease'dir. Actionlint geçti. README artık Rust geliştirme/dağıtımını esas alır. macOS site indirmesi APP ZIP'ini seçer ve önceki Go dosya adıyla uyumludur; sekiz paket/link regresyon testi geçti.
 - [x] Taslak release'in üç uygulama dosyası, SHA-256 listesi, aday commit'i ve sürüm adlarını doğrulamak. [Rust aday taslağı](https://github.com/ipatavatsizz/zbinstaller/releases/tag/untagged-75932294f8141d3d5a54): `v26.11.3-rust-candidate.20261104.2`; draft/prerelease, hedef commit `c7662e9e9489a669381ed9315b2f39f0f2fe5612`. Dört varlık (üç uygulama + `SHA256SUMS`) doğrulandı; üç dosya indirilip hash'leri karşılaştırıldı. Windows dosyası native UI testinde kullanılan dosyayla birebir aynı; macOS ZIP içinde APP executable ve `Info.plist` var. Windows imzası `NotSigned`.
-- [ ] Gerçek oyun/kullanıcı kabulü sonrasında Installer 2 taslağını herkese açık yayımlamak. Bu çalışma otomatik public yayın yapmaz.
+- [ ] Installer 2 taslağını herkese açık yayımlamak — mevcut görev kapsamı dışında, ayrı yayın kararı gerekir. Bu çalışma otomatik public yayın yapmaz.
 
-Windows'ta tamamlanan kapsam: 31'in izole süreç senaryoları ve gerçek Steam aç/kapat kabulü, 32'nin izole kurulum/başlatıcı döngüsü, 33'ün deneysel imza politikası ve 34'ün Rust derleme/taslak kabulü. Yerelde 42 workspace Rust testi, 24 UI testi, 8 yayın/link testi, fmt ve Clippy geçti; normal workspace çalışmasında üç gerçek Steam/game opt-in testi atlanır. Bunlardan yalnızca dosya yazmayan Steam süreç testi ayrıca çalıştırıldı ve geçti. Gerçek geliştirici oyununa kurulum yapılmadı. Aşağıdaki gerçek oyun/Workshop/config kabul hücreleri bu izole kanıtlarla doldurulmaz.
+Windows'ta tamamlanan kapsam: 31'in izole süreç senaryoları ve gerçek Steam aç/kapat kabulü, 32'nin izole kurulum/başlatıcı döngüsü, 33'ün deneysel imza politikası ve 34'ün Rust derleme/taslak kabulü. Yerelde 42 workspace Rust testi, 24 UI testi, 8 yayın/link testi, fmt ve Clippy geçti; normal workspace çalışmasında üç gerçek Steam/game opt-in testi atlanır. Bunlardan yalnızca dosya yazmayan Steam süreç testi ayrıca çalıştırıldı ve geçti. Gerçek geliştirici oyununa kurulum yapılmadı. Gerçek oyun/Workshop/config sonuçları bu izole kanıtlarla başarılı sayılmaz.
 
 Doğrulanan aday dosyaları:
 
@@ -173,22 +162,42 @@ Doğrulanan aday dosyaları:
 | `ZombieBuddyInstaller-linux-amd64` | `b0c310f280fd9d3d46e54effaf075014b4978a5357061a9c50b1b81d59fab0d2` |
 | `ZombieBuddyInstaller-macos-arm64.zip` | `9bcc926e7fc75574471727b5bed50c4d032c2682b14e1362fff66a942eb5c8cd` |
 
+## Kabul ortamı ve engeller (2026-11-05)
+
+Kullanıcının güncel onayıyla [kabul prosedürü ve kanıt şablonu](../tests/README.md#gerçek-kabul-çalıştırma-prosedürü-3034) revize edildi. [Proje kuralları](../AGENTS.md), gerekli Steam config işlemlerine belirli hedefler, ilk yazmadan önce kalıcı bağımsız yedek ve doğrulanmış geri yüklemeyle izin verir. İlk belge adımında Steam işlemi yapılmadı; ikinci adımda güvenli hale getirilen config testi yalnız tam adıyla opt-in çalıştırıldı ve geçti. Oyun roundtrip testi ve toplu `--ignored` çalıştırılmadı.
+
+Tarihsel aday: `c7662e9e9489a669381ed9315b2f39f0f2fe5612`, etiket `v26.11.3-rust-candidate.20261104.2`; hash'leri 34. maddede kayıtlıdır. Revize belge adımı başında salt okunur doğrulanan HEAD `aed9b2284a73d6008c1ee2a7ab284dbba615ab38` idi. HEAD ve yeni değişiklikler aday commit'i değildir; eski binary/hash/UI kabulü yeni kaynak commit'ine aktarılmaz.
+
+| Kontrol / kabul ortamı | Güvenlik ve kanıt kapısı | Güncel durum |
+| --- | --- | --- |
+| Windows x64 gerçek Steam config roundtrip | Tam hedef listesi; normal kapanış sonrası bağımsız disk yedeği; config/orijinal backup varlık-hash-izin geri yükleme doğrulaması; Steam sürümü/son durumu | 2026-11-05 geçti; 31. maddede yerel kanıt, Tester kabulü beklenir |
+| Linux x64 native Actions | Aynı kaynak commit; WDIO test-build sonucu ayrı; production executable hash/süreç/görünür pencere/log/screenshot ayrı | Tarihsel WDIO geçti; yeni production smoke uygulanmadı/çalıştırılmadı |
+| macOS Apple Silicon native Actions | Aynı kaynak commit; WDIO test-build sonucu ayrı; ZIP/APP hash/süreç/görünür pencere/log/screenshot ayrı | Tarihsel WDIO geçti; yeni production smoke uygulanmadı/çalıştırılmadı |
+| Aynı kaynak commit CI ve artifact doğrulaması | Run/job URL; üç dosya ve SHA-256; kaynak/HEAD/tarihsel aday ayrımı; Tester sonucu | Revize değişiklikler için henüz çalıştırılmadı |
+| Gerçek oyun ve ayrı manuel masaüstü | Oyun dosyalarına yazılmaz/oyun açılmaz; ek masaüstü makinesi gerekmez | Kapsam dışı, çalıştırılmadı; görev engeli değil |
+
+Sıralı plan: güvenli Windows Steam config testi (yerel geçti, Tester bekleniyor) → Linux/macOS production smoke ve WDIO → aynı kaynak CI/kanıt/sonuç kapatılması. Her adım Tester kabulüne bağlıdır. Ayrılmış oyun sistemi yokluğu bu kapsamda engel değildir. 33'ün imzasız deneysel dağıtım politikası korunur; public yayın ayrı kalır.
+
 ## Kabul sonuç kaydı
 
-Windows'ta branch'ten bağımsız Steam süreç testi geçti (31. madde). Henüz branch bazında gerçek Steam/oyun kabul sonucu yok. Aşağıdaki hücreler yalnızca ilgili deneme çalıştırıldıktan sonra tarih ve kanıt bağlantısıyla değiştirilir. `Bekliyor`, başarısızlık veya başarı anlamına gelmez. 31 ve 32'deki branch bazında kutular ancak ilgili sütun üç platformun iki branch'inde de tamamlandığında işaretlenir.
+Her sonuç ilgili kaynak commit'i, UTC ve kanıt bağlantısıyla yazılır. `Çalıştırılmadı` başarı değildir; `Kapsam dışı` bu görevin gerektirmediği ve yapılmamış kontrolü belirtir. İkinci adımda Windows config sonucu eklendi; sonraki Linux/macOS ve CI kontrolleri hâlâ çalıştırılmadı.
 
-| Ortam / branch | Commit / uygulama dosyası / Steam sürümü | İndirme / iptal | Kapatma / flush / zaman aşımı / yeniden başlatma / rollback | Kurulum + oyun | Tekrar kurulum + oyun | Kaldırma + oyun | Tarih / kanıt |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Windows x64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
-| Windows x64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
-| Linux x64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
-| Linux x64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
-| macOS arm64 / LTS | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
-| macOS arm64 / Beta | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | Bekliyor | — |
+| Kontrol | Sonuç | Kanıt / yapılacak kayıt |
+| --- | --- | --- |
+| Windows gerçek Steam normal aç/kapat | Tarihsel geçti, branch'ten bağımsız | 31. madde; 2026-11-04; config/game roundtrip kanıtı değil |
+| Windows bağımsız yedekli config roundtrip | 2026-11-05 geçti; Tester kabulü beklenir | 31. madde; yerel log ve bağımsız recovery manifest; HEAD + ikinci adım değişiklikleri |
+| Linux x64 WDIO test-build | Tarihsel geçti | `c7662e9` CI; yeni kaynak commit'inde tekrar kayıt gerekir |
+| Linux x64 production artifact pencere smoke | Çalıştırılmadı | Sonraki workflow adımı; süreç/pencere ve artifact hash kanıtı |
+| macOS arm64 WDIO test-build | Tarihsel geçti | `c7662e9` CI; yeni kaynak commit'inde tekrar kayıt gerekir |
+| macOS arm64 production APP pencere smoke | Çalıştırılmadı | Sonraki workflow adımı; ZIP/APP ve süreç/pencere kanıtı |
+| Yeni kaynak commit'i üç platform CI/artifact/hash | Çalıştırılmadı | Final adımda run/job/commit/hash kayıtları |
+| Windows x64 LTS/Beta gerçek oyun matrisi | Kapsam dışı, çalıştırılmadı | Gerçek oyun dosyası ve açılış işlemi yapılmaz |
+| Linux x64 LTS/Beta gerçek oyun matrisi | Kapsam dışı, çalıştırılmadı | Görev engeli değil; fixture başarıları aktarılmaz |
+| macOS arm64 LTS/Beta gerçek oyun matrisi | Kapsam dışı, çalıştırılmadı | Görev engeli değil; fixture başarıları aktarılmaz |
+| Ayrı Linux/macOS manuel masaüstü | Kapsam dışı, çalıştırılmadı | Native Actions kabul edilen ortam |
+| Public yayın | Kapsam dışı, yapılmadı | Ayrı yayın kararı |
 
-CI kanıtları: `c7662e9e9489a669381ed9315b2f39f0f2fe5612` üç platform test/build/lint ve Linux/macOS deneysel native UI suite'leri için başarılıdır; Windows indirilen EXE native kabulü ve Rust taslak varlıklarının hash kontrolü de geçti (34. madde). Önceki `9350183` kanıtı tarihsel kayıttır. Gerçek Steam/oyun kabulü ayrı bekler. İmza politikası: mevcut Go dağıtımı gibi imzasız deneysel adaylar; [politika](RELEASE.md). Herkese açık yayın için kabul edilen commit henüz yok; doğrulanan deneysel aday `c7662e9`dur.
-
-Gerçek Steam/oyun dosyaları otomatik testlerle değiştirilmez. Üç hedefin dosya düzenlerinin Windows üzerinde fixture testlerinden geçmesi, Linux/macOS üzerinde native doğrulama yerine geçmez.
+CI kanıtları: `c7662e9e9489a669381ed9315b2f39f0f2fe5612` üç platform test/build/lint ve Linux/macOS deneysel native UI suite'leri için tarihsel başarılıdır; Windows indirilen EXE native kabulü ve taslak hash kontrolü de geçti (34. madde). Bu sonuçlar revize değişikliklerin doğrulaması değildir. Kanıt yolları `acceptance/<tam-kaynak-commit>/<platform>/<UTC>/record.md` şablonuyla, Steam/oyun dışında tutulur; ham config/yedekler özel kalır. İmza politikası [RELEASE.md](RELEASE.md) içindedir. Görev tamamlandığında gerçek oyun veya public yayın tamamlandı iddiası kurulmaz.
 
 ## İlgili dosyalar ve kaynaklar
 

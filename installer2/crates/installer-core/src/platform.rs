@@ -198,6 +198,10 @@ pub fn open_workshop(branch: Branch) -> Result<()> {
     Ok(())
 }
 
+#[cfg(all(test, windows))]
+#[path = "steam_config_test_support.rs"]
+mod steam_config_test_support;
+
 // These tests invoke the real client, so normal cargo test and CI must skip them.
 #[cfg(all(test, windows))]
 mod native_tests {
@@ -332,117 +336,176 @@ mod native_tests {
         Ok(())
     }
 
+    use super::steam_config_test_support as config_recovery;
+
     #[test]
     #[ignore = "Opt-in native acceptance: patches and restores real Steam localconfig backups"]
     fn native_windows_steam_localconfig_backup_roundtrip() -> Result<()> {
-        use crate::{
-            TargetPlatform, discovery, install,
-            transaction::{self, Change},
-        };
-
+        use crate::{discovery, install, transaction};
+        use std::panic::{AssertUnwindSafe, catch_unwind};
         ensure_game_closed()?;
-        let root = steam_root()?;
+        let root = steam_root()?.canonicalize()?;
         ensure!(
             steam_running(),
-            "Start Steam before running native acceptance; no process was changed"
+            "Start Steam before native acceptance; no process was changed"
         );
-        let mut restore = RestoreSteamFiles::new(root.clone());
+        let configs = discovery::discover_from_for(&root, TargetPlatform::Windows)?.config_paths;
+        ensure!(!configs.is_empty(), "No Steam user configs found");
+        let targets: Vec<_> = configs
+            .iter()
+            .flat_map(|path| [path.clone(), transaction::backup_path(path)])
+            .collect();
+        for target in &targets {
+            ensure!(
+                target
+                    .parent()
+                    .context("Missing target parent")?
+                    .canonicalize()?
+                    .starts_with(&root),
+                "Config target escaped Steam"
+            );
+            if let Ok(metadata) = std::fs::symlink_metadata(target) {
+                ensure!(
+                    metadata.is_file() && !metadata.file_type().is_symlink(),
+                    "Unexpected config target type"
+                );
+            }
+        }
+        println!(
+            "Predetermined {} config and backup targets; no game writes.",
+            targets.len()
+        );
+        let mut running_guard = Some(RestoreRunningSteam(root.clone()));
+        let shutdown = Instant::now();
         stop_steam(&root)?;
         ensure!(!steam_running(), "Steam remained running after shutdown");
-
-        let environment = discovery::discover_from_for(&root, TargetPlatform::Windows)?;
-        ensure!(
-            !environment.config_paths.is_empty(),
-            "No Steam user localconfig.vdf files were found"
-        );
-        let mut guarded_paths = Vec::new();
-        for config in &environment.config_paths {
-            guarded_paths.push(config.clone());
-            guarded_paths.push(transaction::backup_path(config));
-        }
-        restore.capture(&guarded_paths)?;
-
-        let original_configs: Vec<_> = environment
-            .config_paths
-            .iter()
-            .map(|path| Ok((path.clone(), std::fs::read(path)?)))
-            .collect::<Result<_>>()?;
-        let original_backups: Vec<_> = environment
-            .config_paths
-            .iter()
-            .map(|config| {
-                let backup = transaction::backup_path(config);
-                let contents = match std::fs::read(&backup) {
-                    Ok(bytes) => Some(bytes),
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-                    Err(error) => return Err(error.into()),
-                };
-                Ok((backup, contents))
-            })
-            .collect::<Result<_>>()?;
-
-        let mut changes: Vec<Change> = Vec::new();
-        let patched = install::add_steam_patches(
-            &mut changes,
-            &environment.config_paths,
-            TargetPlatform::Windows,
-        )?;
-        ensure!(
-            patched > 0,
-            "No Project Zomboid launch options were patched"
-        );
-        let transaction_root = tempfile::tempdir()?;
-        transaction::apply_at(transaction_root.path(), &changes, transaction::atomic_write)?;
-
-        for ((config, original), (backup, prior_backup)) in
-            original_configs.iter().zip(&original_backups)
-        {
-            let patched_config = crate::patch::steam_config_for(original, TargetPlatform::Windows)?;
-            if let Some(patched_config) = patched_config {
-                ensure!(
-                    std::fs::read(config)? == patched_config,
-                    "Steam config patch did not persist to {}",
-                    config.display()
-                );
-                let expected_backup = prior_backup.as_deref().unwrap_or(original);
-                ensure!(
-                    std::fs::read(backup)? == expected_backup,
-                    "First-original backup was not preserved for {}",
-                    config.display()
-                );
-            }
-        }
-        println!("PASS: real Steam launch options and first-original backups were verified.");
-
-        restore.restore()?;
-        for (path, original) in &original_configs {
+        println!("Steam closed normally in {:?}", shutdown.elapsed());
+        let mut recovery = None;
+        let result = catch_unwind(AssertUnwindSafe(|| -> Result<()> {
+            let after_close =
+                discovery::discover_from_for(&root, TargetPlatform::Windows)?.config_paths;
             ensure!(
-                std::fs::read(path)? == *original,
-                "Could not restore {}",
-                path.display()
+                after_close == configs,
+                "Config target set changed during shutdown; refusing writes"
+            );
+            ensure_game_closed()?;
+            let saved = config_recovery::Recovery::capture(&targets, &root)?;
+            println!(
+                "Independent recovery evidence: {}",
+                saved.directory.display()
+            );
+            recovery = Some(saved);
+            // After capture, only explicit verified cleanup may restart Steam.
+            std::mem::forget(running_guard.take());
+            let mut baseline_changes = Vec::new();
+            for config in &configs {
+                let input = std::fs::read(config)?;
+                if let Some(bytes) =
+                    crate::patch::uninstall_steam_config(&input, TargetPlatform::Windows)?
+                {
+                    // Exercise a real patch even when the initial config already has managed flags.
+                    crate::patch::steam_config_for(&bytes, TargetPlatform::Windows)?;
+                    if bytes != input {
+                        baseline_changes.push(transaction::Change {
+                            path: config.clone(),
+                            bytes,
+                            remove: false,
+                        });
+                    }
+                }
+            }
+            ensure!(
+                !steam_running(),
+                "Steam restarted unexpectedly; refusing baseline writes"
+            );
+            let baseline_journal = tempfile::tempdir()?;
+            transaction::apply_at(
+                baseline_journal.path(),
+                &baseline_changes,
+                transaction::atomic_write,
+            )?;
+            let originals: Vec<_> = configs
+                .iter()
+                .map(std::fs::read)
+                .collect::<std::io::Result<_>>()?;
+            let mut changes = Vec::new();
+            install::add_steam_patches(&mut changes, &configs, TargetPlatform::Windows)?;
+            ensure!(
+                changes
+                    .iter()
+                    .all(|change| targets.contains(&change.path) && !change.remove),
+                "Unexpected patch target"
+            );
+            ensure!(
+                !steam_running(),
+                "Steam restarted unexpectedly; refusing config writes"
+            );
+            ensure!(
+                changes.iter().any(|change| configs.contains(&change.path)),
+                "No actual config patch would be written"
+            );
+            let journal = tempfile::tempdir()?;
+            transaction::apply_at(journal.path(), &changes, transaction::atomic_write)?;
+            println!("Verified actual patch writes to scoped config targets.");
+            for (config, original) in configs.iter().zip(&originals) {
+                if let Some(expected) =
+                    crate::patch::steam_config_for(original, TargetPlatform::Windows)?
+                {
+                    config_recovery::verify_scoped_patch(original, &std::fs::read(config)?)?;
+                    ensure!(
+                        std::fs::read(config)? == expected,
+                        "Patched config differs from scoped transformation"
+                    );
+                }
+            }
+            recovery
+                .as_ref()
+                .unwrap()
+                .verify_backups_after_patch(&originals)?;
+            let mut repeated = Vec::new();
+            install::add_steam_patches(&mut repeated, &configs, TargetPlatform::Windows)?;
+            ensure!(
+                repeated.is_empty(),
+                "Second config patch was not idempotent"
+            );
+            println!(
+                "PASS: scoped config patch, first-backup semantics and idempotence; no game/Workshop/download operations."
+            );
+            Ok(())
+        }));
+        if let Some(saved) = recovery {
+            if steam_running() {
+                stop_steam(&root).with_context(|| {
+                    format!(
+                        "Cannot close Steam for cleanup; recovery: {}",
+                        saved.directory.display()
+                    )
+                })?;
+            }
+            saved.restore()?;
+            println!(
+                "PASS: original config/backup bytes, existence and permissions verified before Steam restart."
+            );
+            let startup = Instant::now();
+            start_steam(&root)?;
+            while !steam_running() {
+                ensure!(
+                    startup.elapsed() < Duration::from_secs(30),
+                    "Steam did not restart; recovery: {}",
+                    saved.directory.display()
+                );
+                thread::sleep(Duration::from_millis(500));
+            }
+            println!(
+                "Steam restarted normally in {:?}; recovery retained at {}",
+                startup.elapsed(),
+                saved.directory.display()
             );
         }
-        for (path, original) in &original_backups {
-            match original {
-                Some(bytes) => ensure!(
-                    std::fs::read(path)? == *bytes,
-                    "Could not restore {}",
-                    path.display()
-                ),
-                None => ensure!(
-                    !path.exists(),
-                    "Temporary backup remains at {}",
-                    path.display()
-                ),
-            }
+        match result {
+            Ok(result) => result,
+            Err(_) => anyhow::bail!("Config scenario panicked; cleanup completed before restart"),
         }
-        ensure!(
-            steam_running(),
-            "Steam was not running after the native test"
-        );
-        restore.armed = false;
-        println!("PASS: original Steam configs/backups were restored and Steam restarted.");
-        Ok(())
     }
 
     #[test]
