@@ -47,9 +47,9 @@ fn dacl(path: &Path) -> Result<String> {
 }
 
 // Windows may change the informational AUTO_INHERITED control bit when setting an ACL.
-// Compare the exact ordered binary ACEs and inheritance-protection bit, not that marker.
+// Compare exact ordered binary ACEs and every other control flag, including AUTO_INHERIT_REQUIRED.
 fn dacl_semantics(sddl: &str) -> Result<String> {
-    let output = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; $sd=New-Object Security.AccessControl.RawSecurityDescriptor($env:ZB_ACL_SDDL); $acl=$sd.DiscretionaryAcl; $bytes=New-Object byte[] $acl.BinaryLength; $acl.GetBinaryForm($bytes,0); ([int]$sd.ControlFlags -band [int][Security.AccessControl.ControlFlags]::DiscretionaryAclProtected).ToString()+':'+[Convert]::ToBase64String($bytes)"])
+    let output = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "$ErrorActionPreference='Stop'; $sd=New-Object Security.AccessControl.RawSecurityDescriptor($env:ZB_ACL_SDDL); $acl=$sd.DiscretionaryAcl; $bytes=New-Object byte[] $acl.BinaryLength; $acl.GetBinaryForm($bytes,0); ([int]$sd.ControlFlags -band (-bnot [int][Security.AccessControl.ControlFlags]::DiscretionaryAclAutoInherited)).ToString()+':'+[Convert]::ToBase64String($bytes)"])
         .env("ZB_ACL_SDDL", sddl).output()?;
     ensure!(output.status.success(), "Could not normalize DACL");
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
@@ -370,5 +370,14 @@ fn dacl_comparison_preserves_rights_order_and_inheritance() -> Result<()> {
         dacl_semantics("D:(A;;FR;;;WD)(D;;FW;;;WD)")?,
         dacl_semantics("D:(D;;FW;;;WD)(A;;FR;;;WD)")?
     );
+    Ok(())
+}
+
+#[test]
+fn dacl_comparison_preserves_auto_inherit_required() -> Result<()> {
+    let required = dacl_semantics("D:AR(A;ID;FR;;;WD)")?;
+    assert_ne!(required, dacl_semantics("D:AI(A;ID;FR;;;WD)")?);
+    assert_ne!(required, dacl_semantics("D:(A;ID;FR;;;WD)")?);
+    assert_eq!(required, dacl_semantics("D:ARAI(A;ID;FR;;;WD)")?);
     Ok(())
 }
