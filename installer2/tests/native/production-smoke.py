@@ -187,8 +187,9 @@ def smoke(artifact, output, timeout):
             process = subprocess.Popen([str(executable)], cwd=executable.parent,
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             report["pid"] = process.pid
-            deadline = time.monotonic() + timeout
             report["windows"] = wait_for_window(process, probe, timeout)
+            report["window_seen_seconds"] = round(time.monotonic() - started, 3)
+            deadline = time.monotonic() + timeout
             time.sleep(3)
             screenshot = output / "production-window.png"
             report["paint_attempts"] = []
