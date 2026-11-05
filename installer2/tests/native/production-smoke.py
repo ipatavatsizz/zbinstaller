@@ -8,6 +8,8 @@ from pathlib import Path
 import platform
 import plistlib
 import signal
+import struct
+import zlib
 import subprocess
 import sys
 import time
@@ -24,6 +26,72 @@ def digest(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             result.update(chunk)
         return result.hexdigest()
+
+
+def painted_samples(samples):
+    if not samples:
+        return False
+    brightness = [(299 * r + 587 * g + 114 * b) // 1000 for r, g, b in samples]
+    colors = {(r // 32, g // 32, b // 32) for r, g, b in samples}
+    return max(brightness) - min(brightness) >= 60 and len(colors) >= 6
+
+
+def painted_png(path, region=None):
+    # Standard-library PNG reader for the native tools' non-interlaced 8-bit RGB(A).
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise RuntimeError("Screenshot is not PNG")
+    offset, compressed = 8, bytearray()
+    while offset < len(data):
+        size = struct.unpack_from(">I", data, offset)[0]
+        kind = data[offset + 4:offset + 8]
+        chunk = data[offset + 8:offset + 8 + size]
+        if kind == b"IHDR":
+            width, height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", chunk)
+        elif kind == b"IDAT":
+            compressed.extend(chunk)
+        offset += size + 12
+    if depth != 8 or color not in (2, 6) or compression or filtering or interlace:
+        raise RuntimeError("Unsupported native screenshot PNG format")
+    channels = 3 if color == 2 else 4
+    stride = width * channels
+    raw = zlib.decompress(compressed)
+    if len(raw) != (stride + 1) * height:
+        raise RuntimeError("Invalid PNG scanlines")
+    x, y, w, h = region or (0, 0, width, height)
+    if not (0 <= x < x + w <= width and 0 <= y < y + h <= height):
+        raise RuntimeError("Window bounds outside screenshot")
+    # Exclude title bar/borders; an OS-drawn title does not establish WebView paint.
+    left, right = x + w // 10, x + w * 9 // 10
+    top, bottom = y + h // 10, y + h * 9 // 10
+    samples, previous = [], bytearray(stride)
+    for row in range(height):
+        start = row * (stride + 1)
+        mode = raw[start]
+        values = bytearray(raw[start + 1:start + 1 + stride])
+        for column in range(stride):
+            a = values[column - channels] if column >= channels else 0
+            b = previous[column]
+            c = previous[column - channels] if column >= channels else 0
+            if mode == 1:
+                predictor = a
+            elif mode == 2:
+                predictor = b
+            elif mode == 3:
+                predictor = (a + b) // 2
+            elif mode == 4:
+                distances = [abs(b - c), abs(a - c), abs(a + b - 2 * c)]
+                predictor = (a, b, c)[distances.index(min(distances))]
+            elif mode == 0:
+                predictor = 0
+            else:
+                raise RuntimeError("Invalid PNG filter")
+            values[column] = (values[column] + predictor) & 255
+        if top <= row < bottom and (row - top) % max(1, h // 40) == 0:
+            samples.extend(tuple(values[col * channels:col * channels + 3])
+                           for col in range(left, right, max(1, w // 40)))
+        previous = values
+    return painted_samples(samples)
 
 
 def wait_for_window(process, probe, timeout):
@@ -119,18 +187,30 @@ def smoke(artifact, output, timeout):
             process = subprocess.Popen([str(executable)], cwd=executable.parent,
                                        stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
             report["pid"] = process.pid
+            deadline = time.monotonic() + timeout
             report["windows"] = wait_for_window(process, probe, timeout)
-            # Observe survival after first mapping, then require the window again.
             time.sleep(3)
-            report["windows_after_settle"] = wait_for_window(process, probe, 5)
             screenshot = output / "production-window.png"
-            if platform.system() == "Linux":
-                run(["scrot", "--overwrite", str(screenshot)])
-            else:
-                identifier = report["windows_after_settle"][0]["kCGWindowNumber"]
-                run(["screencapture", "-x", "-o", "-l", str(identifier), str(screenshot)])
-            if not screenshot.is_file() or screenshot.stat().st_size < 100:
-                raise RuntimeError("Native screenshot missing/empty")
+            report["paint_attempts"] = []
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("Visible production WebView remained blank before startup deadline")
+                windows = wait_for_window(process, probe, min(5, remaining))
+                report["windows_after_settle"] = windows
+                region = None
+                if platform.system() == "Linux":
+                    run(["scrot", "--overwrite", str(screenshot)])
+                    geometry = windows[0]["geometry"]
+                    region = tuple(int(geometry[key]) for key in ("X", "Y", "WIDTH", "HEIGHT"))
+                else:
+                    identifier = windows[0]["kCGWindowNumber"]
+                    run(["screencapture", "-x", "-o", "-l", str(identifier), str(screenshot)])
+                painted = painted_png(screenshot, region)
+                report["paint_attempts"].append({"painted": painted, "elapsed": round(time.monotonic() - started, 3)})
+                if painted:
+                    break
+                time.sleep(1)
             if process.poll() is not None:
                 raise RuntimeError("Production process exited before acceptance completed")
             if digest(artifact) != report["artifact_sha256"] or digest(executable) != report["executable_sha256"]:
@@ -163,6 +243,24 @@ def self_test():
     from unittest.mock import Mock, patch
 
     class StartupFailures(unittest.TestCase):
+        def test_blank_webview_screenshot_rejected(self):
+            import tempfile
+            width, height = 80, 60
+            rows = []
+            for row in range(height):
+                # A colorful OS title bar above an otherwise blank WebView must fail.
+                pixels = bytes(component for col in range(width) for component in
+                               ((col * 3, 255 - col * 3, 40) if row < 5 else (40, 40, 55)))
+                rows.append(b"\0" + pixels)
+            def chunk(kind, value):
+                return struct.pack(">I", len(value)) + kind + value + struct.pack(">I", zlib.crc32(kind + value))
+            image = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"".join(rows))) + chunk(b"IEND", b"")
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "blank.png"
+                path.write_bytes(image)
+                self.assertFalse(painted_png(path))
+            self.assertTrue(painted_samples([(0, 0, 0), (255, 255, 255), (0, 255, 0), (255, 0, 0), (0, 0, 255), (128, 128, 128)]))
+
         def test_early_exit_rejected(self):
             process = Mock(pid=123, returncode=9)
             process.poll.return_value = 9
