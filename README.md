@@ -6,8 +6,6 @@
 
 Desktop installer for the ZombieBuddy mod for **Project Zomboid**, implemented with Rust, Tauri and a React/TypeScript UI. Go is not required to build or run the Rust application. Linux and Apple Silicon macOS support is experimental.
 
-This project builds on the original work by [zed-0xff](https://github.com/zed-0xff).
-
 ## Features
 
 - Discovers Steam, additional libraries, Project Zomboid and both LTS/Beta Workshop branches.
