@@ -27,3 +27,18 @@ Desktop.ini
 
 # Native UI acceptance screenshots and local WDIO output
 installer2/test-results/
+
+# Root application outputs
+node_modules/
+dist/
+target/
+src-tauri/gen/
+
+test-results/
+release-assets/
+production-download/
+candidate-assets/
+
+# Retained local outputs from the previous layout (not source)
+installer2/
+installer/

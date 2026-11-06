@@ -10,9 +10,9 @@ on:
         default: ''
   push:
     branches: ['**']
-    paths: ['installer2/**', '.github/workflows/installer2.yml']
+    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
   pull_request:
-    paths: ['installer2/**', '.github/workflows/installer2.yml']
+    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
   workflow_dispatch:
     inputs:
       publish_draft:
@@ -48,7 +48,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: installer2
+        working-directory: .
     steps:
       - uses: actions/checkout@v5
         with:
@@ -57,14 +57,14 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: installer2/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: installer2 -> target
+          workspaces: . -> target
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
@@ -103,14 +103,14 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.artifact }}
-          path: installer2/release-assets/${{ matrix.output }}
+          path: release-assets/${{ matrix.output }}
           if-no-files-found: error
       - name: Download production application for native startup acceptance
         if: runner.os != 'Windows'
         uses: actions/download-artifact@v5
         with:
           name: ${{ matrix.artifact }}
-          path: installer2/production-download
+          path: production-download
       - name: Run downloaded production application visible-window smoke
         if: runner.os != 'Windows'
         timeout-minutes: 3
@@ -133,35 +133,40 @@ jobs:
         with:
           name: installer2-production-smoke-${{ runner.os }}
           path: |
-            installer2/test-results/production/**/result.json
-            installer2/test-results/production/**/bundle-identity.json
-            installer2/test-results/production/**/application.log
-            installer2/test-results/production/**/production-window.png
-            installer2/test-results/production/**/window-probe.swift
+            test-results/production/**/result.json
+            test-results/production/**/bundle-identity.json
+            test-results/production/**/application.log
+            test-results/production/**/production-window.png
+            test-results/production/**/window-probe.swift
           if-no-files-found: warn
       - name: Build test-only native WebDriver application
+        id: native-build
         if: runner.os != 'Windows'
+        shell: bash
         env:
           VITE_WDIO_TEST: 'true'
           BUILD_TARGET: ${{ matrix.target }}
-        run: npm run tauri -- build --no-bundle --features wdio-tests --target "$BUILD_TARGET" --config tests/native/tauri.wdio.conf.json
+        run: |
+          npm run tauri -- build --no-bundle --features wdio-tests --target "$BUILD_TARGET" --config tests/native/tauri.wdio.conf.json
+          binary_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).mainBinaryName")
+          echo "application=target/$BUILD_TARGET/release/$binary_name" >> "$GITHUB_OUTPUT"
       - name: Run Linux native UI acceptance
         if: runner.os == 'Linux'
         env:
-          TAURI_TEST_APP: target/${{ matrix.target }}/release/ZombieBuddyInstaller-26.11.3
+          TAURI_TEST_APP: ${{ steps.native-build.outputs.application }}
           TAURI_TEST_OUTPUT: test-results/native/linux
         run: xvfb-run --auto-servernum npm run test:native:unix
       - name: Run macOS native UI acceptance
         if: runner.os == 'macOS'
         env:
-          TAURI_TEST_APP: target/${{ matrix.target }}/release/ZombieBuddyInstaller-26.11.3
+          TAURI_TEST_APP: ${{ steps.native-build.outputs.application }}
           TAURI_TEST_OUTPUT: test-results/native/macos
         run: npm run test:native:unix
       - uses: actions/upload-artifact@v5
         if: runner.os != 'Windows' && always()
         with:
           name: installer2-native-ui-${{ runner.os }}
-          path: installer2/test-results/native/
+          path: test-results/native/
           if-no-files-found: ignore
 
   draft-release:
@@ -188,7 +193,7 @@ jobs:
           name: installer2-macos-arm64
           path: candidate-assets
       - name: Validate application formats and create SHA-256 list
-        run: node installer2/scripts/package-candidate.mjs candidate-assets
+        run: node scripts/package-candidate.mjs candidate-assets
       - name: Create candidate draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -199,4 +204,4 @@ jobs:
           gh release create "$CANDIDATE_TAG" candidate-assets/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Installer 2 candidate $CANDIDATE_TAG" --draft --prerelease \
-            --notes 'Rust/Tauri application candidate; no Go runtime or setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; WebKitGTK 4.1 required). macOS: unzip and open the APP. Linux/macOS support is experimental. Unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. SHA256SUMS lists the three application files. Real Steam/game acceptance is separate; see installer2/docs/MIGRATION.md and installer2/docs/RELEASE.md.'
+            --notes 'Rust/Tauri application candidate; no Go runtime or setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; WebKitGTK 4.1 required). macOS: unzip and open the APP. Linux/macOS support is experimental. Unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. SHA256SUMS lists the three application files. Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed; in-game launch is not a prerequisite. See tests/README.md for coverage and scoped Steam safeguards, and docs/RELEASE.md for verified source/artifacts and platform limits.'

@@ -56,7 +56,7 @@ jobs:
         run: |
           node --input-type=module -e '
             import fs from "node:fs";
-            const config = JSON.parse(fs.readFileSync("installer2/src-tauri/tauri.conf.json", "utf8"));
+            const config = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
             const tag = process.env.RELEASE_TAG;
             const base = `v${config.version}`;
             if (tag !== base && !tag.startsWith(`${base}-`)) throw new Error(`Tag ${tag} does not match application ${config.version}`);
@@ -74,7 +74,7 @@ jobs:
           name: installer2-macos-arm64
           path: release-assets
       - name: Validate application formats and create SHA-256 list
-        run: node installer2/scripts/package-candidate.mjs release-assets
+        run: node scripts/package-candidate.mjs release-assets
       - name: Create Rust application draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -90,7 +90,10 @@ jobs:
             Linux/macOS support is experimental. Applications are unsigned;
             Windows SmartScreen/macOS Gatekeeper warnings may appear.
             SHA256SUMS contains SHA-256 hashes of the three application files.
-            Real Steam/game and manual platform acceptance are tracked in installer2/docs/MIGRATION.md.
+            Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed.
+            In-game launch is not an acceptance or publishing prerequisite.
+            Test coverage and scoped Steam safeguards: tests/README.md.
+            Verified source, artifacts and platform limits: docs/RELEASE.md.
         shell: bash
         run: |
           gh release create "$RELEASE_TAG" release-assets/* \
