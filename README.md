@@ -91,7 +91,7 @@ The [version-tag workflow](.github/workflows/release.yml) uses the same Rust wor
 - [tests/](tests/): fixtures, UI, release and native acceptance checks.
 - [scripts/](scripts/): release artifact validation.
 - [docs/](docs/): architecture and historical release evidence.
-- [website/](website/): independent static marketing page and its own assets. It needs no build; serve this folder when deploying the website. No Pages workflow is configured here.
+- [website/](website/): independent static marketing page and its own assets. The [Pages workflow](.github/workflows/pages.yml) publishes this folder when website changes reach `main`; GitHub Pages uses the **GitHub Actions** source. No frontend build is required for the website.
 - Root `index.html` and `diagnostics.html` are the Vite/Tauri application entry points.
 
 The legacy Go source has been removed from the current tree; it remains available in repository history. Ignored local outputs in the former `installer/` and `installer2/` folders may remain on existing developer machines and are not part of the source layout.
