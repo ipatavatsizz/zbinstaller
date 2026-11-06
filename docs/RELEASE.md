@@ -10,13 +10,33 @@ Installer kabulü [test ölçütlerine](../tests/README.md#installer-kabul-ölç
 
 Yeni sürüm/adayı hazırlarken aynı kaynak commit'inde frontend build/UI/yayın-link testleri, Rust fmt/workspace testleri/Clippy ve üç native derleme doğrulanır. Linux/macOS'ta indirilen production dosyasının görünür ve boyanmış pencere smoke'u ile ayrı WebDriver feature build'indeki etkileşim testleri kaydedilir. Dosya adları ve indirilen dosyaların SHA-256 değerleri kaynak/run kimliğiyle birlikte tutulur. Test derlemesi ile production dosyası kanıtı birbirine aktarılmaz; her yeni aday kendi kanıtını gerektirir.
 
-[Native workflow](../.github/workflows/installer2.yml) üç uygulamayı toplar; isteğe bağlı taslak prerelease oluşturabilir. [Etiket workflow'u](../.github/workflows/release.yml) aynı Rust doğrulamasını kullanır ve üç dosya ile `SHA256SUMS` içeren taslak hazırlar. Taslak hazırlama public yayın değildir; public yayın ayrı bir karardır. Bu kayıttaki doğrulama sırasında yeni tag/taslak/public release oluşturulmadı; aşağıdaki run'ın draft-release adımı atlandı.
+[Native workflow](../.github/workflows/installer2.yml) üç uygulamayı toplar; isteğe bağlı taslak prerelease oluşturabilir. [Etiket workflow'u](../.github/workflows/release.yml) aynı Rust doğrulamasını kullanır ve üç dosya ile `SHA256SUMS` içeren taslak hazırlar. Taslak hazırlama public yayın değildir; public yayın ayrı bir karardır. 26.11.3 yayını, kullanıcının açık public yayın talebi üzerine doğrulanmış CI dosyalarıyla hazırlandı.
 
 ## Kök yerleşimin yerel kontrolü
 
 2026-11-06 tarihinde commit edilmemiş kök yerleşimi çalışma ağacında frontend build, 24 UI testi, 22 yayın testi, Rust fmt, `cargo test -p installer-core --locked` (32 başarılı, 3 opt-in test atlandı) ve workspace/all-targets Clippy geçti. Göreli belge bağlantıları da doğrulandı. Native UI CI yolları artık Tauri `mainBinaryName` değerinden türetiliyor; yerel native test yönergesindeki çıktı yolları derleme komutuyla eşleştirildi. Bu değişikliklerle üç platform native CI veya production artifact pencere kontrolleri yeniden çalıştırılmadı; aşağıdaki kaynak/artifact kaydı tarihsel kimliğini korur.
 
 ## Son doğrulanan kaynak ve dosyalar
+
+### 26.11.3
+
+[v26.11.3](https://github.com/ipatavatsizz/zbinstaller/releases/tag/v26.11.3), **2026-11-06 15:42:02 UTC** tarihinde public ve Latest olarak yayımlandı; draft/prerelease değildir. Etiketin aşağıdaki kaynak commit'ini işaret ettiği, dört yayın dosyasının sunucu SHA-256/boyutlarının doğrulanan yerel dosyalarla eşleştiği ve yayımlanan `SHA256SUMS` indirmesinin aynı baytları içerdiği yayın sonrasında doğrulandı.
+
+Uygulama kaynak commit'i **`7b0e195f979c34969d774d49e7c8bc590aa87534`**, [Actions run `42243154342`](https://github.com/ipatavatsizz/zbinstaller/actions/runs/42243154342), 2026-11-06, sonuç `success`. Kök kaynak yerleşiminde frontend build, 24 UI testi, 22 yayın testi, Rust workspace testleri, fmt, Clippy ve üç native derleme geçti. Gerçek Steam/oyun opt-in testleri çalıştırılmadı. İsteğe bağlı CI draft-release işi atlandı; aşağıdaki aynı CI dosyaları yerelde doğrulanıp yayın için toplandı.
+
+| Hedef | İndirilebilir dosya | SHA-256 |
+| --- | --- | --- |
+| Windows x64 | [EXE](https://github.com/ipatavatsizz/zbinstaller/releases/download/v26.11.3/ZombieBuddyInstaller-windows-amd64.exe) | `feed8891436c583d7f5c03f9bbf20e546d032553ce0ee63256d768ee755756f0` |
+| Linux x64 | [Çalıştırılabilir dosya](https://github.com/ipatavatsizz/zbinstaller/releases/download/v26.11.3/ZombieBuddyInstaller-linux-amd64) | `89d18cf4d7ff1958c30e42bea646abf272c51c3133eb0fc275b898eb5b832320` |
+| macOS arm64 | [APP ZIP](https://github.com/ipatavatsizz/zbinstaller/releases/download/v26.11.3/ZombieBuddyInstaller-macos-arm64.zip) | `d311a4d5dbdb99cd937270b71b7b0c7d458d69dbdd3d7514cee113e2b4c4616b` |
+
+Üç dosya CI'dan indirildi; PE x64, ELF64 x64 ve ZIP içindeki Mach-O arm64 APP/sürüm kimliği doğrulandı. `SHA256SUMS` aynı dosyalardan üretildi. Windows EXE'si doğrudan `tests/native/windows-ui.ps1 -Executable '<indirilen-exe>'` ile sınandı: native 680×540 pencere, DPI/odak/stiller, logo/yerleşim, klavye menüleri, F5 ile diagnostics açma/yeniden açma ve Escape ile çıkış geçti. Test kurulum/kaldırma/Workshop/yama çağırmadı; gerçek oyun dosyalarına yazılmadı.
+
+Linux/macOS'ta CI'dan indirilen production dosyalarının pencere/çizim kontrolleri ve ayrı WebDriver feature build'lerinin native UI testleri geçti. İki production `result.json` kaydındaki kaynak commit'i ve dosya hash'leri yerel indirilen dosyalarla eşleşti; production ve WebDriver ekran görüntüleri görsel incelendi. Native pencere testleri gerçek Workshop indirme/abonelik matrisi, oyun içi mod davranışı veya SmartScreen/Gatekeeper uyarı akışlarını doğrulamaz. Linux/macOS desteği deneysel ve uygulamalar imzasızdır.
+
+Yerel kanıtlar git'e alınmayan `target/acceptance/current-source-7b0e195/` altında; yayın dosyaları `candidate-assets/release-v26.11.3-7b0e195/` altında tutulur. Yayın etiketi yukarıdaki test edilmiş uygulama kaynağını işaret eder; sonradan yapılan yayın belgesi/site metni güncellemeleri farklı commit'tir ve yeniden derlenmiş uygulama iddiası taşımaz.
+
+### Önceki doğrulama: b47578f
 
 Test edilen kaynak commit'i **`b47578f3262b46ba4421abb0030c9731cb4f634a`**, [Actions run `42231971879`, attempt 2](https://github.com/ipatavatsizz/zbinstaller/actions/runs/42231971879/attempts/2), 2026-11-06, sonuç `success`. Frontend build/UI/yayın-link testleri, Rust fmt/workspace testleri/Clippy ve üç native derleme geçti; hiçbir kontrol atlanmadı. Bu kayıt taşınmadan önceki `installer2/` kaynak yerleşimine aittir. Sonraki belge ve klasör düzeni değişiklikleri bu test edilen kaynak commit'inden ayrıdır; bu koşu yeni kök yerleşimin üç platform CI doğrulaması olarak sunulmaz. Tablodaki artifact kimlikleri korunur.
 

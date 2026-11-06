@@ -28,7 +28,7 @@ The tool runs directly and does not install itself:
 | Linux x64 (experimental) | `ZombieBuddyInstaller-linux-amd64` | `chmod +x`; WebKitGTK 4.1 and desktop dependencies |
 | macOS arm64 (experimental) | `ZombieBuddyInstaller-macos-arm64.zip` | Unzip and open the APP |
 
-Applications are unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. New Rust candidates are prepared as draft prereleases. Existing public releases may still contain the legacy Go application until a Rust candidate is published. See the [release policy](docs/RELEASE.md).
+Download the Rust application from the [latest release](https://github.com/ipatavatsizz/zbinstaller/releases/latest). Applications are unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. See the [release policy and verification evidence](docs/RELEASE.md).
 
 Install Steam and Project Zomboid, close the game, run the tool and select LTS or Beta. Subscribe through the selected Workshop page if needed and wait for Steam's download. The native library and JAR must be supplied by Workshop; this tool does not create them.
 
