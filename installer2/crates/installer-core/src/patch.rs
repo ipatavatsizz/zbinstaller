@@ -10,7 +10,7 @@ pub fn launcher_json(input: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn launcher_json_for(input: &[u8], target: TargetPlatform) -> Result<Vec<u8>> {
-    let flags = target.flags();
+    let flags = target.agent_flags();
     let mut root: serde_json::Value = serde_json::from_slice(input)?;
     let args = root
         .get_mut("vmArgs")
@@ -20,17 +20,23 @@ pub fn launcher_json_for(input: &[u8], target: TargetPlatform) -> Result<Vec<u8>
         args.iter().all(serde_json::Value::is_string),
         "vmArgs must contain strings"
     );
-    if args.iter().any(|v| v.as_str() == Some(flags)) {
-        return Ok(input.to_vec());
-    }
-    if let Some(agent) = args.iter_mut().find(|value| {
-        value
+    let original = args.clone();
+    let position = args
+        .iter()
+        .position(|value| {
+            value
+                .as_str()
+                .is_some_and(|text| is_managed_agent(text, target))
+        })
+        .unwrap_or(0);
+    args.retain(|value| {
+        !value
             .as_str()
-            .is_some_and(|text| text == flags.trim_end_matches(" --"))
-    }) {
-        *agent = flags.into();
-    } else {
-        args.insert(0, flags.into());
+            .is_some_and(|text| is_managed_agent(text, target))
+    });
+    args.insert(position, flags.into());
+    if *args == original {
+        return Ok(input.to_vec());
     }
     Ok(serde_json::to_vec_pretty(&root)?)
 }
@@ -41,7 +47,7 @@ pub fn uninstall_launcher_json(input: &[u8], target: TargetPlatform) -> Result<V
         root.get("vmArgs").is_some_and(|args| args.is_array()),
         "Root vmArgs array was not found"
     );
-    fn clean(value: &mut serde_json::Value, flags: &str) -> bool {
+    fn clean(value: &mut serde_json::Value, target: TargetPlatform) -> bool {
         let mut changed = false;
         match value {
             serde_json::Value::Object(fields) => {
@@ -51,26 +57,25 @@ pub fn uninstall_launcher_json(input: &[u8], target: TargetPlatform) -> Result<V
                     {
                         let previous = args.len();
                         args.retain(|arg| {
-                            !arg.as_str().is_some_and(|arg| {
-                                arg == flags || arg == flags.trim_end_matches(" --")
-                            })
+                            !arg.as_str()
+                                .is_some_and(|arg| is_managed_agent(arg, target))
                         });
                         changed |= args.len() != previous;
                     } else {
-                        changed |= clean(value, flags);
+                        changed |= clean(value, target);
                     }
                 }
             }
             serde_json::Value::Array(values) => {
                 for value in values {
-                    changed |= clean(value, flags);
+                    changed |= clean(value, target);
                 }
             }
             _ => {}
         }
         changed
     }
-    if !clean(&mut root, target.flags()) {
+    if !clean(&mut root, target) {
         return Ok(input.to_vec());
     }
     Ok(serde_json::to_vec_pretty(&root)?)
@@ -91,26 +96,30 @@ pub fn launcher_bat(input: &[u8]) -> Result<Vec<u8>> {
             {
                 found = true;
                 let (key, value) = line.split_once('=').expect("matched assignment");
-                if !value.contains(FLAGS) {
-                    let value = value.trim();
-                    if value == "-agentlib:zbNative" {
-                        return format!("{key}={FLAGS}");
-                    }
-                    if let Some(suffix) = value.strip_prefix("-agentlib:zbNative ") {
-                        return format!(
-                            "{key}={FLAGS}{}{}",
-                            if suffix.is_empty() { "" } else { " " },
-                            suffix.trim()
-                        );
-                    }
-                    return format!("{key}={FLAGS} {value}");
+                let cleaned = remove_flags(value.trim(), FLAGS);
+                let agent = TargetPlatform::Windows.agent_flags();
+                // Never create the legacy `agent --` spelling from a user's leading
+                // separator: later repairs/removal could not distinguish its owner.
+                if cleaned.split_whitespace().next() == Some("--") {
+                    return format!("{key}={cleaned} {agent}");
                 }
+                return format!(
+                    "{key}={agent}{}{}",
+                    if cleaned.is_empty() { "" } else { " " },
+                    cleaned
+                );
             }
             line.to_owned()
         })
         .collect();
     if !found {
-        lines.insert(0, format!("SET _JAVA_OPTIONS={FLAGS}"));
+        lines.insert(
+            0,
+            format!(
+                "SET _JAVA_OPTIONS={}",
+                TargetPlatform::Windows.agent_flags()
+            ),
+        );
     }
     Ok(lines.join(newline).into_bytes())
 }
@@ -146,14 +155,12 @@ pub fn uninstall_launcher_bat(input: &[u8]) -> Result<Vec<u8>> {
 }
 
 pub fn launcher_shell(input: &[u8], target: TargetPlatform) -> Result<Vec<u8>> {
-    let text = std::str::from_utf8(input).context("Launcher must be UTF-8")?;
-    if text.contains(target.flags()) {
-        return Ok(input.to_vec());
-    }
+    let cleaned = uninstall_launcher_shell(input, target)?;
+    let text = std::str::from_utf8(&cleaned).expect("validated UTF-8");
     let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let line = format!(
         "export _JAVA_OPTIONS=\"{} ${{_JAVA_OPTIONS:-}}\"{newline}",
-        target.flags()
+        target.agent_flags()
     );
     // A shebang must remain the first line for direct execution.
     let position = if text.starts_with("#!") {
@@ -176,15 +183,21 @@ pub fn launcher_shell(input: &[u8], target: TargetPlatform) -> Result<Vec<u8>> {
 
 pub fn uninstall_launcher_shell(input: &[u8], target: TargetPlatform) -> Result<Vec<u8>> {
     let text = std::str::from_utf8(input).context("Launcher must be UTF-8")?;
-    let managed = format!(
-        "export _JAVA_OPTIONS=\"{} ${{_JAVA_OPTIONS:-}}\"",
-        target.flags()
-    );
+    let managed = [target.flags(), target.agent_flags()]
+        .map(|flags| format!("export _JAVA_OPTIONS=\"{flags} ${{_JAVA_OPTIONS:-}}\""));
     Ok(text
         .split_inclusive('\n')
-        .filter(|line| line.trim_end_matches(['\r', '\n']) != managed)
+        .filter(|line| {
+            !managed
+                .iter()
+                .any(|managed| line.trim_end_matches(['\r', '\n']) == managed)
+        })
         .collect::<String>()
         .into_bytes())
+}
+
+fn is_managed_agent(value: &str, target: TargetPlatform) -> bool {
+    value == target.agent_flags() || value == target.flags()
 }
 
 fn remove_flags(value: &str, flags: &str) -> String {
@@ -307,7 +320,11 @@ mod tests {
     fn batch_preserves_crlf_and_existing_options() {
         let first = launcher_bat(b"@echo off\r\nSET _JAVA_OPTIONS=-Xmx4g\r\n").unwrap();
         assert_eq!(first, launcher_bat(&first).unwrap());
-        assert!(String::from_utf8(first).unwrap().contains("-- -Xmx4g\r\n"));
+        assert!(
+            String::from_utf8(first)
+                .unwrap()
+                .contains("-agentlib:zbNative -Xmx4g\r\n")
+        );
     }
 
     #[test]
@@ -370,5 +387,125 @@ mod tests {
             remove_flags("-Dvalue=prefix-agentlib:zbNative -- -debug", FLAGS),
             "-Dvalue=prefix-agentlib:zbNative -- -debug"
         );
+    }
+
+    #[test]
+    fn json_migrates_duplicate_old_and_new_agents_but_keeps_independent_separator() {
+        for target in [
+            TargetPlatform::Windows,
+            TargetPlatform::Linux,
+            TargetPlatform::Macos,
+        ] {
+            let input = serde_json::to_vec(&serde_json::json!({
+            "vmArgs": ["-Xmx4G", target.flags(), "--", target.agent_flags(), target.flags(), "-Dkeep=true"],
+            "nested": {"vmArgs": [target.flags(), target.agent_flags(), "--", "keep"]}
+        })).unwrap();
+            let output = launcher_json_for(&input, target).unwrap();
+            let parsed: serde_json::Value = serde_json::from_slice(&output).unwrap();
+            assert_eq!(
+                parsed["vmArgs"],
+                serde_json::json!(["-Xmx4G", target.agent_flags(), "--", "-Dkeep=true"])
+            );
+            assert_eq!(launcher_json_for(&output, target).unwrap(), output);
+            for installed in [&input, &output] {
+                let removed = uninstall_launcher_json(installed, target).unwrap();
+                let parsed: serde_json::Value = serde_json::from_slice(&removed).unwrap();
+                assert_eq!(
+                    parsed["vmArgs"],
+                    serde_json::json!(["-Xmx4G", "--", "-Dkeep=true"])
+                );
+                assert_eq!(
+                    parsed["nested"]["vmArgs"],
+                    serde_json::json!(["--", "keep"])
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn batch_migrates_old_and_new_agents_only_in_assignments() {
+        for newline in ["\n", "\r\n"] {
+            let comment = "REM -agentlib:zbNative -- keep comment";
+            let input = format!(
+                "{comment}{newline}SET _JAVA_OPTIONS=-agentlib:zbNative -- -Xmx4G -- -agentlib:zbNative -Dkeep=true{newline}echo done"
+            );
+            let expected = format!(
+                "{comment}{newline}SET _JAVA_OPTIONS=-agentlib:zbNative -Xmx4G -- -Dkeep=true{newline}echo done"
+            );
+            let output = launcher_bat(input.as_bytes()).unwrap();
+            assert_eq!(output, expected.as_bytes());
+            assert_eq!(launcher_bat(&output).unwrap(), output);
+            for installed in [input.as_bytes(), output.as_slice()] {
+                assert_eq!(
+                uninstall_launcher_bat(installed).unwrap(),
+                format!(
+                    "{comment}{newline}SET _JAVA_OPTIONS=-Xmx4G -- -Dkeep=true{newline}echo done"
+                )
+                .as_bytes()
+            );
+            }
+        }
+    }
+
+    #[test]
+    fn shell_migrates_only_exact_managed_lines_and_preserves_user_separator() {
+        for target in [TargetPlatform::Linux, TargetPlatform::Macos] {
+            for newline in ["\n", "\r\n"] {
+                let original = format!(
+                    "#!/bin/sh{newline}# {} keep comment{newline}export _JAVA_OPTIONS=\"-Xmx4G --\"{newline}echo done",
+                    target.flags()
+                );
+                let legacy = format!(
+                    "#!/bin/sh{newline}export _JAVA_OPTIONS=\"{} ${{_JAVA_OPTIONS:-}}\"{newline}export _JAVA_OPTIONS=\"{} ${{_JAVA_OPTIONS:-}}\"{newline}{}",
+                    target.flags(),
+                    target.agent_flags(),
+                    original.split_once(newline).unwrap().1
+                );
+                let output = launcher_shell(legacy.as_bytes(), target).unwrap();
+                let expected = format!(
+                    "#!/bin/sh{newline}export _JAVA_OPTIONS=\"{} ${{_JAVA_OPTIONS:-}}\"{newline}{}",
+                    target.agent_flags(),
+                    original.split_once(newline).unwrap().1
+                );
+                assert_eq!(output, expected.as_bytes());
+                assert_eq!(launcher_shell(&output, target).unwrap(), output);
+                for installed in [legacy.as_bytes(), output.as_slice()] {
+                    assert_eq!(
+                        uninstall_launcher_shell(installed, target).unwrap(),
+                        original.as_bytes()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn leading_user_separator_survives_install_repeat_and_uninstall() {
+        for options in ["--", "-- -Xmx4G", "--\t-Xmx4G"] {
+            for newline in ["\n", "\r\n"] {
+                let input = format!("SET _JAVA_OPTIONS={options}{newline}");
+                let output = launcher_bat(input.as_bytes()).unwrap();
+                assert_eq!(launcher_bat(&output).unwrap(), output);
+                assert_eq!(uninstall_launcher_bat(&output).unwrap(), input.as_bytes());
+            }
+        }
+        for target in [
+            TargetPlatform::Windows,
+            TargetPlatform::Linux,
+            TargetPlatform::Macos,
+        ] {
+            let input = br#"{"vmArgs":["--","-Xmx4G"]}"#;
+            let output = launcher_json_for(input, target).unwrap();
+            assert_eq!(launcher_json_for(&output, target).unwrap(), output);
+            let removed: serde_json::Value =
+                serde_json::from_slice(&uninstall_launcher_json(&output, target).unwrap()).unwrap();
+            assert_eq!(removed["vmArgs"], serde_json::json!(["--", "-Xmx4G"]));
+            if target != TargetPlatform::Windows {
+                let input = b"#!/bin/sh\nexport _JAVA_OPTIONS=\"-- -Xmx4G\"\n";
+                let output = launcher_shell(input, target).unwrap();
+                assert_eq!(launcher_shell(&output, target).unwrap(), output);
+                assert_eq!(uninstall_launcher_shell(&output, target).unwrap(), input);
+            }
+        }
     }
 }

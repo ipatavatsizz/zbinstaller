@@ -33,10 +33,19 @@ impl TargetPlatform {
         ]
     }
 
+    /// Steam launch options require the separator after the managed agent.
     pub fn flags(self) -> &'static str {
         match self {
             Self::Windows => "-agentlib:zbNative --",
             _ => "-javaagent:ZombieBuddy.jar --",
+        }
+    }
+
+    /// Direct JVM launchers accept only the agent argument, without Steam's separator.
+    pub fn agent_flags(self) -> &'static str {
+        match self {
+            Self::Windows => "-agentlib:zbNative",
+            _ => "-javaagent:ZombieBuddy.jar",
         }
     }
 

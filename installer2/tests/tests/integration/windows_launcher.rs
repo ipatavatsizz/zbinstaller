@@ -12,7 +12,7 @@ use std::{
 };
 
 const CONFIG: &str = r#""UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" { "108600" { "LaunchOptions" "-debug -Xmx4G" } "42" { "LaunchOptions" "keep-other-game" } } } } } }"#;
-const LAUNCHER: &[u8] = b"@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\nSET _JAVA_OPTIONS=-Xmx4G -Duser.keep=true\r\n\"%ZB_PROBE_EXE%\" --exact launcher_probe --nocapture\r\nexit /b %ERRORLEVEL%\r\n";
+const LAUNCHER: &[u8] = b"@echo off\r\nsetlocal\r\ncd /d \"%~dp0\"\r\nSET _JAVA_OPTIONS=-agentlib:zbNative -- -agentlib:zbNative -Xmx4G -Duser.keep=true\r\n\"%ZB_PROBE_EXE%\" --exact launcher_probe --nocapture\r\nexit /b %ERRORLEVEL%\r\n";
 
 #[test]
 fn launcher_probe() {
@@ -24,12 +24,19 @@ fn launcher_probe() {
     let expected = std::env::var("ZB_EXPECT_MOD").unwrap();
     let options = std::env::var("_JAVA_OPTIONS").unwrap();
     assert!(options.contains("-Xmx4G") && options.contains("-Duser.keep=true"));
+    assert!(!options.split_whitespace().any(|arg| arg == "--"));
     if expected == "none" {
         assert!(!options.contains("-agentlib:zbNative"));
         assert!(!root.join("zbNative.dll").exists());
         assert!(!root.join("ZombieBuddy.jar").exists());
     } else {
-        assert_eq!(options.matches("-agentlib:zbNative --").count(), 1);
+        assert_eq!(
+            options
+                .split_whitespace()
+                .filter(|arg| *arg == "-agentlib:zbNative")
+                .count(),
+            1
+        );
         for name in TargetPlatform::Windows.files() {
             assert_eq!(
                 fs::read_to_string(root.join(name)).unwrap(),
@@ -110,7 +117,7 @@ fn both_branches_launch_after_install_repeat_switch_and_uninstall() {
         fs::write(&config, CONFIG).unwrap();
         fs::write(game.join("ProjectZomboid64.bat"), LAUNCHER).unwrap();
         let json = game.join("ProjectZomboid64.json");
-        let original_json = br#"{"vmArgs":["-Xmx4G","-Duser.keep=true"],"mainClass":"test/LaunchProbe","userSetting":"keep"}"#;
+        let original_json = br#"{"vmArgs":["-agentlib:zbNative --","-agentlib:zbNative","-Xmx4G","-Duser.keep=true"],"mainClass":"test/LaunchProbe","userSetting":"keep"}"#;
         fs::write(&json, original_json).unwrap();
         let workshop = payload(root, branch);
         let configs = [config.clone()];
@@ -127,7 +134,7 @@ fn both_branches_launch_after_install_repeat_switch_and_uninstall() {
         launch(&game, branch.workshop_id(), false);
         let installed: serde_json::Value =
             serde_json::from_slice(&fs::read(&json).unwrap()).unwrap();
-        assert_eq!(installed["vmArgs"][0], "-agentlib:zbNative --");
+        assert_eq!(installed["vmArgs"][0], "-agentlib:zbNative");
         assert_eq!(installed["userSetting"], "keep");
 
         // User changes after installation must survive a repeat, branch switch and removal.

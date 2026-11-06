@@ -1,6 +1,6 @@
 # ZombieBuddy Installer 2
 
-Tauri 2 + Rust implementation of the [original Go installer](../installer/install.go). Rust contains the installer logic; the UI uses React/TypeScript in the native webview. Go is not required to build or run this application. Linux/macOS support is experimental; native CI includes real Tauri/WebKit UI tests. Real Steam/game acceptance is recorded separately in the [migration checklist](docs/MIGRATION.md).
+Tauri 2 + Rust implementation of the [original Go installer](../installer/install.go). Rust contains the installer logic; the UI uses React/TypeScript in the native webview. Go is not required to build or run this application. Linux/macOS support is experimental; native CI includes real Tauri/WebKit UI tests. Installer acceptance checks file/configuration results while the game is closed; game or in-game mod launch is not an acceptance or public-release prerequisite. See the [test criteria and Steam safety precautions](tests/README.md) and [verified source/artifact evidence](docs/RELEASE.md).
 
 ## Develop
 

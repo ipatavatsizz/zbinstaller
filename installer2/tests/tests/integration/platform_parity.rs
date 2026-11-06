@@ -103,9 +103,11 @@ fn both_branches_on_all_platforms_install_repeat_and_uninstall_with_nested_json(
             let first_json = fs::read(&json).unwrap();
             let first_launcher = fs::read(game.join(launcher)).unwrap();
             let first_config = fs::read(&config).unwrap();
-            assert!(String::from_utf8_lossy(&first_json).contains(target.flags()));
-            assert!(String::from_utf8_lossy(&first_launcher).contains(target.flags()));
+            assert!(String::from_utf8_lossy(&first_json).contains(target.agent_flags()));
+            assert!(String::from_utf8_lossy(&first_launcher).contains(target.agent_flags()));
             assert!(String::from_utf8_lossy(&first_config).contains(target.flags()));
+            assert!(!String::from_utf8_lossy(&first_json).contains(target.flags()));
+            assert!(!String::from_utf8_lossy(&first_launcher).contains(target.flags()));
             assert_eq!(
                 serde_json::from_slice::<serde_json::Value>(&first_json).unwrap()["nested"]["vmArgs"]
                     [0],
@@ -187,7 +189,7 @@ fn server_launcher_fallback_and_existing_go_backups_are_preserved() {
     install_from_paths_for(&game, &[config], &workshop, TargetPlatform::Linux).unwrap();
     assert!(
         String::from_utf8_lossy(&fs::read(game.join("start-server.sh")).unwrap())
-            .contains(TargetPlatform::Linux.flags())
+            .contains(TargetPlatform::Linux.agent_flags())
     );
     assert_eq!(fs::read(backup).unwrap(), b"original Go backup");
 }

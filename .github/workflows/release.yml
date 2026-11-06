@@ -90,7 +90,10 @@ jobs:
             Linux/macOS support is experimental. Applications are unsigned;
             Windows SmartScreen/macOS Gatekeeper warnings may appear.
             SHA256SUMS contains SHA-256 hashes of the three application files.
-            Real Steam/game and manual platform acceptance are tracked in installer2/docs/MIGRATION.md.
+            Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed.
+            In-game launch is not an acceptance or publishing prerequisite.
+            Test coverage and scoped Steam safeguards: installer2/tests/README.md.
+            Verified source, artifacts and platform limits: installer2/docs/RELEASE.md.
         shell: bash
         run: |
           gh release create "$RELEASE_TAG" release-assets/* \

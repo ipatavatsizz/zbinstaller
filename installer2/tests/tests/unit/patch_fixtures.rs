@@ -12,16 +12,16 @@ fn branch_ids_are_stable_and_serialized_names_are_ui_friendly() {
 }
 
 #[test]
-fn json_fixture_gets_agent_separator_once_and_preserves_settings() {
+fn json_fixture_gets_agent_only_once_and_preserves_settings() {
     let input = fixture("ProjectZomboid64.json");
     let output = launcher_json(input).unwrap();
     let parsed: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let args = parsed["vmArgs"].as_array().unwrap();
 
-    assert_eq!(args[0], "-agentlib:zbNative --");
+    assert_eq!(args[0], "-agentlib:zbNative");
     assert_eq!(
         args.iter()
-            .filter(|value| value.as_str() == Some("-agentlib:zbNative --"))
+            .filter(|value| value.as_str() == Some("-agentlib:zbNative"))
             .count(),
         1
     );
@@ -45,7 +45,7 @@ fn batch_fixture_preserves_launcher_commands_and_normalizes_agent_once() {
         let output = launcher_bat(input.as_bytes()).unwrap();
         let text = String::from_utf8(output.clone()).unwrap();
 
-        assert!(text.contains(&format!("SET _JAVA_OPTIONS=-agentlib:zbNative --{newline}")));
+        assert!(text.contains(&format!("SET _JAVA_OPTIONS=-agentlib:zbNative{newline}")));
         assert_eq!(text.matches("-agentlib:zbNative").count(), 1);
         assert!(text.contains("SET PZ_CLASSPATH=./;projectzomboid.jar"));
         assert!(text.contains("IF %ERRORLEVEL% NEQ 0"));

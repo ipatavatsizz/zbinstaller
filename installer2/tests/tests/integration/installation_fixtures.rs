@@ -56,9 +56,11 @@ fn installation_applies_all_fixture_patches_copies_payloads_and_is_idempotent() 
     .unwrap();
 
     assert!(String::from_utf8_lossy(&first_pass[0]).contains("-agentlib:zbNative -- -Xmx16G --"));
-    assert!(String::from_utf8_lossy(&first_pass[1]).contains("-agentlib:zbNative --"));
+    assert!(String::from_utf8_lossy(&first_pass[1]).contains("\"-agentlib:zbNative\""));
     assert!(
-        String::from_utf8_lossy(&first_pass[2]).contains("SET _JAVA_OPTIONS=-agentlib:zbNative --")
+        String::from_utf8_lossy(&first_pass[2])
+            .lines()
+            .any(|line| line == "SET _JAVA_OPTIONS=-agentlib:zbNative")
     );
     assert_eq!(first_pass[3], b"dll-payload");
     assert_eq!(first_pass[4], b"jar-payload");

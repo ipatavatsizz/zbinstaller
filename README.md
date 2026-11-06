@@ -52,7 +52,7 @@ npm run tauri build
 
 On Windows, the executable is `installer2/target/release/ZombieBuddyInstaller-26.11.3.exe`. Run `npm run test:native:windows` inside the application directory to validate the real release WebView2 window. The [development guide](installer2/README.md) lists all native output paths and commands.
 
-Normal tests write only to temporary directories. Windows tests execute patched BAT launchers in real `cmd.exe` processes and exercise installation orchestration with an isolated child process. These tests do not modify the developer's Steam/game installation or claim real game/mod acceptance. See the [test plan](installer2/tests/README.md) and [migration results](installer2/docs/MIGRATION.md).
+Normal tests write only to temporary directories. Windows tests execute patched BAT launchers in real `cmd.exe` processes and exercise installation orchestration with an isolated child process. These tests do not modify the developer's Steam/game installation. Installer acceptance checks payload copies, launch options, reinstall/uninstall and backup/recovery results while the game is closed; launching Project Zomboid or the mod in-game is not an acceptance or public-release prerequisite. See the [test criteria and scoped Steam opt-in precautions](installer2/tests/README.md) and [verified release evidence](installer2/docs/RELEASE.md).
 
 ## Releases
 
