@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/installer-core", "src-tauri", "tests"]
+resolver = "2"

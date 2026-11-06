@@ -1,0 +1,29 @@
+[package]
+name = "installer2-tests"
+version = "26.11.3"
+edition = "2024"
+publish = false
+
+[lib]
+path = "support.rs"
+
+[dependencies]
+installer-core = { path = "../crates/installer-core" }
+serde_json = "1"
+tempfile = "3"
+
+[[test]]
+name = "unit-patching"
+path = "tests/unit/patch_fixtures.rs"
+
+[[test]]
+name = "integration-installation"
+path = "tests/integration/installation_fixtures.rs"
+
+[[test]]
+name = "platform-parity"
+path = "tests/integration/platform_parity.rs"
+
+[[test]]
+name = "windows-launcher"
+path = "tests/integration/windows_launcher.rs"

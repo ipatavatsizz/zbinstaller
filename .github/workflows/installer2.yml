@@ -1,0 +1,207 @@
+name: Verify and build Installer 2 applications
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit or tag to verify and build'
+        type: string
+        required: false
+        default: ''
+  push:
+    branches: ['**']
+    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
+  pull_request:
+    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
+  workflow_dispatch:
+    inputs:
+      publish_draft:
+        description: 'Create a draft prerelease after all three native builds pass'
+        type: boolean
+        default: false
+      tag:
+        description: 'New candidate tag (required only when publishing a draft)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: installer2-windows-amd64
+            target: x86_64-pc-windows-msvc
+            output: ZombieBuddyInstaller-windows-amd64.exe
+          - os: ubuntu-22.04
+            artifact: installer2-linux-amd64
+            target: x86_64-unknown-linux-gnu
+            output: ZombieBuddyInstaller-linux-amd64
+          - os: macos-latest
+            artifact: installer2-macos-arm64
+            target: aarch64-apple-darwin
+            output: ZombieBuddyInstaller-macos-arm64.zip
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev webkit2gtk-driver xvfb xdotool scrot build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:ui
+      - run: npm run test:release
+      - run: cargo fmt --all -- --check
+      - run: cargo test --workspace --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build directly runnable application
+        run: npm run tauri build -- --target ${{ matrix.target }}
+      - name: Collect application for download
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          OUTPUT_NAME: ${{ matrix.output }}
+        run: |
+          binary_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).mainBinaryName")
+          release_dir="target/$BUILD_TARGET/release"
+          mkdir -p release-assets
+          case "$RUNNER_OS" in
+            Windows) cp "$release_dir/$binary_name.exe" "release-assets/$OUTPUT_NAME" ;;
+            Linux)
+              cp "$release_dir/$binary_name" "release-assets/$OUTPUT_NAME"
+              chmod +x "release-assets/$OUTPUT_NAME"
+              ;;
+            macOS)
+              product_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).productName")
+              ditto -c -k --sequesterRsrc --keepParent "$release_dir/bundle/macos/$product_name.app" "release-assets/$OUTPUT_NAME"
+              ;;
+            *) echo "Unsupported runner: $RUNNER_OS"; exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.artifact }}
+          path: release-assets/${{ matrix.output }}
+          if-no-files-found: error
+      - name: Download production application for native startup acceptance
+        if: runner.os != 'Windows'
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ matrix.artifact }}
+          path: production-download
+      - name: Run downloaded production application visible-window smoke
+        if: runner.os != 'Windows'
+        timeout-minutes: 3
+        shell: bash
+        env:
+          PRODUCTION_FILE: ${{ matrix.output }}
+          SMOKE_OUTPUT: test-results/production/${{ matrix.artifact }}
+        run: |
+          cmp "release-assets/$PRODUCTION_FILE" "production-download/$PRODUCTION_FILE"
+          export SOURCE_COMMIT=$(git rev-parse HEAD)
+          python3 tests/native/production-smoke.py --self-test
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run --auto-servernum python3 tests/native/production-smoke.py --artifact "production-download/$PRODUCTION_FILE" --output "$SMOKE_OUTPUT"
+          else
+            python3 tests/native/production-smoke.py --artifact "production-download/$PRODUCTION_FILE" --output "$SMOKE_OUTPUT"
+          fi
+      - name: Upload production application startup evidence
+        if: runner.os != 'Windows' && always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: installer2-production-smoke-${{ runner.os }}
+          path: |
+            test-results/production/**/result.json
+            test-results/production/**/bundle-identity.json
+            test-results/production/**/application.log
+            test-results/production/**/production-window.png
+            test-results/production/**/window-probe.swift
+          if-no-files-found: warn
+      - name: Build test-only native WebDriver application
+        id: native-build
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          VITE_WDIO_TEST: 'true'
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          npm run tauri -- build --no-bundle --features wdio-tests --target "$BUILD_TARGET" --config tests/native/tauri.wdio.conf.json
+          binary_name=$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).mainBinaryName")
+          echo "application=target/$BUILD_TARGET/release/$binary_name" >> "$GITHUB_OUTPUT"
+      - name: Run Linux native UI acceptance
+        if: runner.os == 'Linux'
+        env:
+          TAURI_TEST_APP: ${{ steps.native-build.outputs.application }}
+          TAURI_TEST_OUTPUT: test-results/native/linux
+        run: xvfb-run --auto-servernum npm run test:native:unix
+      - name: Run macOS native UI acceptance
+        if: runner.os == 'macOS'
+        env:
+          TAURI_TEST_APP: ${{ steps.native-build.outputs.application }}
+          TAURI_TEST_OUTPUT: test-results/native/macos
+        run: npm run test:native:unix
+      - uses: actions/upload-artifact@v5
+        if: runner.os != 'Windows' && always()
+        with:
+          name: installer2-native-ui-${{ runner.os }}
+          path: test-results/native/
+          if-no-files-found: ignore
+
+  draft-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_draft
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-windows-amd64
+          path: candidate-assets
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-linux-amd64
+          path: candidate-assets
+      - uses: actions/download-artifact@v5
+        with:
+          name: installer2-macos-arm64
+          path: candidate-assets
+      - name: Validate application formats and create SHA-256 list
+        run: node scripts/package-candidate.mjs candidate-assets
+      - name: Create candidate draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          [[ "$CANDIDATE_TAG" =~ ^installer2-v[0-9][A-Za-z0-9._-]*$ ]] || { echo 'Use a new installer2-v... candidate tag'; exit 1; }
+          gh release create "$CANDIDATE_TAG" candidate-assets/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Installer 2 candidate $CANDIDATE_TAG" --draft --prerelease \
+            --notes 'Rust/Tauri application candidate; no Go runtime or setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; WebKitGTK 4.1 required). macOS: unzip and open the APP. Linux/macOS support is experimental. Unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. SHA256SUMS lists the three application files. Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed; in-game launch is not a prerequisite. See tests/README.md for coverage and scoped Steam safeguards, and docs/RELEASE.md for verified source/artifacts and platform limits.'

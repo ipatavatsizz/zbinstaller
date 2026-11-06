@@ -1,0 +1,23 @@
+[package]
+name = "installer2"
+version = "26.11.3"
+edition = "2024"
+rust-version = "1.89"
+authors = ["ipatavatsizz"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+installer-core = { path = "../crates/installer-core" }
+tauri-plugin-wdio = { version = "1", optional = true }
+tauri-plugin-wdio-webdriver = { version = "1", optional = true }
+
+[features]
+wdio-tests = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
+
+[dev-dependencies]
+tempfile = "3"

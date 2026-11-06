@@ -1,0 +1,19 @@
+@import '@fontsource-variable/geist';
+
+:root { font-family: 'Geist Variable', sans-serif; color-scheme: light; --bg:#f6f6f4; --panel:#fff; --text:#20211f; --muted:#777970; --line:#e8e8e4; --accent:#4b7c41; }
+@media (prefers-color-scheme: dark) { :root { color-scheme:dark; --bg:#151613; --panel:#1d1f1b; --text:#eeefe9; --muted:#999c92; --line:#30332c; --accent:#a3cb8d; } }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 600px; color:var(--text); background:var(--bg); }
+.diagnostics { display:flex; min-height:100vh; flex-direction:column; gap:9px; padding:14px; }
+section { padding:12px 14px; border:1px solid var(--line); border-radius:11px; background:var(--panel); }
+.summary { margin:0; white-space:pre-wrap; line-height:1.55; font-size:12px; }
+h2 { margin:0 0 7px; color:var(--muted); font-size:10px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; }
+pre { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text); font:12px/1.5 'Geist Variable',sans-serif; }
+.log { flex:1; min-height:80px; overflow:auto; padding:12px 14px; border:1px solid var(--line); border-radius:11px; background:var(--panel); }
+.diagnostic-actions { display:grid; grid-template-columns:repeat(2,1fr); gap:7px; margin-top:auto; }
+button { min-height:36px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:var(--panel); font:600 11px 'Geist Variable',sans-serif; cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 9%,var(--panel)); }
+button:disabled { opacity:.55; cursor:default; }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#refresh { color:#fff; background:#527f48; }
+:root { font-synthesis:none; text-rendering:optimizeLegibility; }

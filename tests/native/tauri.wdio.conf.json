@@ -1,0 +1,16 @@
+{
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "capabilities": [
+        "main-window",
+        {
+          "identifier": "wdio-tests",
+          "description": "Test-only WebDriver access for native UI acceptance.",
+          "windows": ["main", "diagnostics"],
+          "permissions": ["wdio:default", "wdio-webdriver:default"]
+        }
+      ]
+    }
+  }
+}
