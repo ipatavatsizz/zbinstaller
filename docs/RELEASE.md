@@ -12,6 +12,12 @@ Yeni sürüm/adayı hazırlarken aynı kaynak commit'inde frontend build/UI/yay�
 
 [Native workflow](../.github/workflows/installer2.yml) üç uygulamayı toplar; isteğe bağlı taslak prerelease oluşturabilir. [Etiket workflow'u](../.github/workflows/release.yml) aynı Rust doğrulamasını kullanır ve üç dosya ile `SHA256SUMS` içeren taslak hazırlar. Taslak hazırlama public yayın değildir; public yayın ayrı bir karardır. 26.11.3 yayını, kullanıcının açık public yayın talebi üzerine doğrulanmış CI dosyalarıyla hazırlandı.
 
+## Website yayını
+
+Website, `d9bafce` kaynak commit'i üzerinden [GitHub Pages workflow run 42246624228](https://github.com/ipatavatsizz/zbinstaller/actions/runs/42246624228) ile 2026-11-06 tarihinde başarıyla yayımlandı (attempt 2). Link doğrulama testi, artifact yükleme ve Pages deployment adımları geçti; deployment durumu `success` olarak doğrulandı. Canlı adres: <https://ipatavatsizz.github.io/zbinstaller/>.
+
+İlk attempt, tüm deployment adımları başarıyla görünmesine rağmen job sonunda `cancelled`/Pages deployment `error` durumunda kaldı; workflow dosyasında yapısal bir hata bulunmadı. Aynı run yeniden çalıştırıldığında başarıyla tamamlandı. Canlı sayfa HTTP 200 ve beklenen site içeriğiyle ayrıca kontrol edildi.
+
 ## Kök yerleşimin yerel kontrolü
 
 2026-11-06 tarihinde commit edilmemiş kök yerleşimi çalışma ağacında frontend build, 24 UI testi, 22 yayın testi, Rust fmt, `cargo test -p installer-core --locked` (32 başarılı, 3 opt-in test atlandı) ve workspace/all-targets Clippy geçti. Göreli belge bağlantıları da doğrulandı. Native UI CI yolları artık Tauri `mainBinaryName` değerinden türetiliyor; yerel native test yönergesindeki çıktı yolları derleme komutuyla eşleştirildi. Bu değişikliklerle üç platform native CI veya production artifact pencere kontrolleri yeniden çalıştırılmadı; aşağıdaki kaynak/artifact kaydı tarihsel kimliğini korur.
