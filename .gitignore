@@ -11,6 +11,8 @@ installer/vendor/
 
 # IDE and editor files
 .vscode/
+.codex/
+.github/agents/
 .idea/
 *.swp
 *.swo
