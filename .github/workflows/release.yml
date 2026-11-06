@@ -1,13 +1,14 @@
 name: Build Rust application release candidate
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
         description: 'Existing Rust application version tag to build as a draft'
+        required: true
+        type: string
+      notes:
+        description: 'Release notes describing the changes in this version'
         required: true
         type: string
 
@@ -23,9 +24,11 @@ jobs:
       - id: tag
         shell: bash
         env:
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_NOTES: ${{ inputs.notes }}
         run: |
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo 'Expected a v<version> tag'; exit 1; }
+          [[ "$RELEASE_NOTES" =~ [^[:space:]] ]] || { echo 'Release notes are required'; exit 1; }
           echo "value=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
   verify-and-build:
@@ -79,24 +82,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.release-tag.outputs.value }}
-          RELEASE_NOTES: |
-            Rust/Tauri application candidate. Go is not required to build or run it.
-
-            Download and run the application directly; no setup installer.
-            Windows: EXE (WebView2 required).
-            Linux: executable (chmod +x; WebKitGTK 4.1 required).
-            macOS: unzip and open the APP.
-
-            Linux/macOS support is experimental. Applications are unsigned;
-            Windows SmartScreen/macOS Gatekeeper warnings may appear.
-            SHA256SUMS contains SHA-256 hashes of the three application files.
-            Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed.
-            In-game launch is not an acceptance or publishing prerequisite.
-            Test coverage and scoped Steam safeguards: tests/README.md.
-            Verified source, artifacts and platform limits: docs/RELEASE.md.
+          RELEASE_NOTES: ${{ inputs.notes }}
         shell: bash
         run: |
+          printf '%s\n' "$RELEASE_NOTES" > release-notes.md
           gh release create "$RELEASE_TAG" release-assets/* \
             --repo "$GITHUB_REPOSITORY" --verify-tag --target "$(git rev-parse HEAD)" \
             --title "ZombieBuddy Installer ${RELEASE_TAG#v}" \
-            --draft --prerelease --notes "$RELEASE_NOTES"
+            --draft --prerelease --notes-file release-notes.md

@@ -77,9 +77,9 @@ Normal tests write only to temporary directories. Windows tests execute patched 
 
 ## Releases
 
-The [native workflow](.github/workflows/installer2.yml) verifies frontend/Rust tests, lint, three native builds and experimental Linux/macOS UI acceptance. It uploads three directly runnable applications. A manual run can prepare an `installer2-v...` draft candidate.
+The [native workflow](.github/workflows/installer2.yml) runs only when manually dispatched or called by the release workflow. Pushes and pull requests do not start application builds. It verifies frontend/Rust tests, lint, three native builds and experimental Linux/macOS UI acceptance, and uploads three directly runnable applications. A manual run can prepare an `installer2-v...` draft candidate when release notes are provided.
 
-The [version-tag workflow](.github/workflows/release.yml) uses the same Rust workflow and creates a draft prerelease containing the three applications and `SHA256SUMS`. It does not build Go or publish the draft automatically. Use a new tag whose commit contains the Rust application. Linux/macOS support remains experimental; Intel macOS is not included.
+The [release workflow](.github/workflows/release.yml) must be manually dispatched with an existing version tag and release notes. Pushing a tag does not start it. It uses the same Rust workflow and creates a draft prerelease containing the three applications, `SHA256SUMS` and the supplied notes. It does not publish the draft automatically. Start release work only on explicit user request. Linux/macOS support remains experimental; Intel macOS is not included. Website changes continue to deploy independently through GitHub Pages.
 
 ## Project layout
 

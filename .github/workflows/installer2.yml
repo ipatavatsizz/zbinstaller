@@ -8,11 +8,6 @@ on:
         type: string
         required: false
         default: ''
-  push:
-    branches: ['**']
-    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
-  pull_request:
-    paths: ['src/**', 'src-tauri/**', 'crates/**', 'tests/**', 'scripts/**', 'website/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'index.html', 'diagnostics.html', '*.config.ts', 'tsconfig.json', 'components.json', '.github/workflows/installer2.yml']
   workflow_dispatch:
     inputs:
       publish_draft:
@@ -21,6 +16,10 @@ on:
         default: false
       tag:
         description: 'New candidate tag (required only when publishing a draft)'
+        type: string
+        default: ''
+      notes:
+        description: 'Release notes (required when creating a draft)'
         type: string
         default: ''
 
@@ -50,6 +49,13 @@ jobs:
       run:
         working-directory: .
     steps:
+      - name: Require notes for a requested draft
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_draft
+        shell: bash
+        env:
+          RELEASE_NOTES: ${{ inputs.notes }}
+        run: |
+          [[ "$RELEASE_NOTES" =~ [^[:space:]] ]] || { echo 'Release notes are required'; exit 1; }
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.sha }}
@@ -198,10 +204,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_TAG: ${{ inputs.tag }}
+          RELEASE_NOTES: ${{ inputs.notes }}
         shell: bash
         run: |
           [[ "$CANDIDATE_TAG" =~ ^installer2-v[0-9][A-Za-z0-9._-]*$ ]] || { echo 'Use a new installer2-v... candidate tag'; exit 1; }
+          printf '%s\n' "$RELEASE_NOTES" > release-notes.md
           gh release create "$CANDIDATE_TAG" candidate-assets/* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Installer 2 candidate $CANDIDATE_TAG" --draft --prerelease \
-            --notes 'Rust/Tauri application candidate; no Go runtime or setup installer. Windows: EXE (WebView2 required). Linux: executable (chmod +x; WebKitGTK 4.1 required). macOS: unzip and open the APP. Linux/macOS support is experimental. Unsigned; Windows SmartScreen/macOS Gatekeeper warnings may appear. SHA256SUMS lists the three application files. Installer acceptance covers payload/launch settings, reinstall/uninstall and backup/recovery with the game closed; in-game launch is not a prerequisite. See tests/README.md for coverage and scoped Steam safeguards, and docs/RELEASE.md for verified source/artifacts and platform limits.'
+            --notes-file release-notes.md

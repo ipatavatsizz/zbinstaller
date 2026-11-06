@@ -1,5 +1,9 @@
 # Uygulama dağıtımı ve doğrulama
 
+## İş akışı tetikleme politikası
+
+Uygulama derleme workflow'u yalnızca manuel `workflow_dispatch` veya release workflow'undan `workflow_call` ile çalışır; push ve pull request otomatik derleme başlatmaz. Release workflow'u da yalnızca manuel çalışır; etiket push'u yeterli değildir. Yeni sürüm hazırlığı kullanıcının açık talebiyle, mevcut sürüm etiketi ve boş olmayan sürüm notları verilerek başlatılır. Manuel aday taslağı için de notlar zorunludur. Çıktı hâlâ taslak prerelease'dir; public yayın ayrı karardır. Website değişiklikleri bağımsız Pages workflow'uyla otomatik yayımlanmaya devam eder.
+
 ## Dağıtım ve yayın politikası
 
 Araç kendisini sisteme kurmaz: Windows x64 EXE, Linux x64 çalıştırılabilir dosyası ve Apple Silicon macOS APP içeren ZIP indirilip doğrudan açılır. Setup kurucusu, sistem paketi veya DMG dağıtılmaz. Windows WebView2, Linux WebKitGTK 4.1 ve masaüstü bağımlılıkları gerektirir. Linux/macOS desteği deneyseldir; Intel macOS bu çıktılara dahil değildir.
